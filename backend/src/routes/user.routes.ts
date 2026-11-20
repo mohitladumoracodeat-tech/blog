@@ -9,7 +9,7 @@ import { pool } from "../config/mysql";
 import { AppError } from "../errors/app-error";
 import { authenticate } from "../middleware/authenticate";
 import { createUniqueSlug } from "../services/slug.service";
-import { paginationOffset, paginationSchema, parseOrThrow } from "../utils/request-validation";
+import { dateRangeSchema, formatPagination, paginationOffset, paginationSchema, parseOrThrow } from "../utils/request-validation";
 
 interface CountRow extends RowDataPacket {
   total: number;
@@ -123,7 +123,7 @@ userRouter.get("/dashboard", async (request, response) => {
   const [recentPosts] = await pool.execute<RowDataPacket[]>(
     `SELECT id, title, slug, status, created_at AS createdAt, updated_at AS updatedAt
      FROM posts WHERE author_id = ? AND deleted_at IS NULL
-     ORDER BY updated_at DESC LIMIT 8`,
+     ORDER BY updated_at DESC LIMIT 10`,
     [userId],
   );
   response.status(200).json({ data: { stats: stats[0], recentPosts } });
@@ -257,14 +257,37 @@ userRouter.put("/change-password", changePasswordHandler);
    ========================================================================= */
 userRouter.get("/posts", async (request, response) => {
   const query = parseOrThrow(
-    paginationSchema.extend({ status: z.enum(["DRAFT", "PENDING", "APPROVED", "REJECTED"]).optional() }),
+    paginationSchema.merge(dateRangeSchema).extend({
+      status: z.enum(["DRAFT", "PENDING", "APPROVED", "REJECTED"]).optional(),
+      search: z.string().trim().max(100).default(""),
+    }),
     request.query,
   );
   const userId = request.user!.id;
-  const condition = query.status ? " AND status = ?" : "";
-  const values = query.status ? [userId, query.status] : [userId];
+  const conditions = ["p.author_id = ?", "p.deleted_at IS NULL"];
+  const values: Array<string | number> = [userId];
+
+  if (query.status) {
+    conditions.push("p.status = ?");
+    values.push(query.status);
+  }
+  if (query.search) {
+    const pattern = `%${query.search.toLowerCase()}%`;
+    conditions.push("(LOWER(p.title) LIKE ? OR LOWER(p.excerpt) LIKE ?)");
+    values.push(pattern, pattern);
+  }
+  if (query.startDate) {
+    conditions.push("p.created_at >= ?");
+    values.push(`${query.startDate} 00:00:00`);
+  }
+  if (query.endDate) {
+    conditions.push("p.created_at <= ?");
+    values.push(`${query.endDate} 23:59:59.999`);
+  }
+
+  const where = conditions.join(" AND ");
   const [counts] = await pool.execute<CountRow[]>(
-    `SELECT COUNT(*) AS total FROM posts WHERE author_id = ? AND deleted_at IS NULL${condition}`,
+    `SELECT COUNT(*) AS total FROM posts p WHERE ${where}`,
     values,
   );
   const [rows] = await pool.execute<RowDataPacket[]>(
@@ -278,7 +301,7 @@ userRouter.get("/posts", async (request, response) => {
      FROM posts p
      JOIN categories c ON c.id = p.category_id
      LEFT JOIN images i ON i.id = p.featured_image_id
-     WHERE p.author_id = ? AND p.deleted_at IS NULL${condition}
+     WHERE ${where}
      ORDER BY p.updated_at DESC LIMIT ? OFFSET ?`,
     [...values, query.limit, paginationOffset(query.page, query.limit)],
   );
@@ -308,7 +331,7 @@ userRouter.get("/posts", async (request, response) => {
 
   response.status(200).json({
     data: postsWithTags,
-    pagination: { page: query.page, limit: query.limit, total: Number(counts[0].total) },
+    pagination: formatPagination(query.page, query.limit, counts[0].total),
   });
 });
 
@@ -539,26 +562,47 @@ userRouter.delete("/posts/:id", async (request, response) => {
    ========================================================================= */
 userRouter.get("/comments", async (request, response) => {
   const query = parseOrThrow(
-    paginationSchema.extend({ status: z.enum(["PENDING", "APPROVED", "REJECTED"]).optional() }),
+    paginationSchema.merge(dateRangeSchema).extend({
+      status: z.enum(["PENDING", "APPROVED", "REJECTED"]).optional(),
+      search: z.string().trim().max(100).default(""),
+    }),
     request.query,
   );
-  const condition = query.status ? " AND c.status = ?" : "";
-  const values = query.status ? [request.user!.id, query.status] : [request.user!.id];
+  const conditions = ["c.author_id = ?", "c.deleted_at IS NULL"];
+  const values: Array<string | number> = [request.user!.id];
+  if (query.status) {
+    conditions.push("c.status = ?");
+    values.push(query.status);
+  }
+  if (query.search) {
+    const pattern = `%${query.search.toLowerCase()}%`;
+    conditions.push("(LOWER(c.content) LIKE ? OR LOWER(p.title) LIKE ?)");
+    values.push(pattern, pattern);
+  }
+  if (query.startDate) {
+    conditions.push("c.created_at >= ?");
+    values.push(`${query.startDate} 00:00:00`);
+  }
+  if (query.endDate) {
+    conditions.push("c.created_at <= ?");
+    values.push(`${query.endDate} 23:59:59.999`);
+  }
+  const where = conditions.join(" AND ");
   const [counts] = await pool.execute<CountRow[]>(
-    `SELECT COUNT(*) AS total FROM comments c WHERE c.author_id = ? AND c.deleted_at IS NULL${condition}`,
+    `SELECT COUNT(*) AS total FROM comments c JOIN posts p ON p.id = c.post_id WHERE ${where}`,
     values,
   );
   const [rows] = await pool.execute<RowDataPacket[]>(
     `SELECT c.id, c.content, c.status, c.created_at AS createdAt,
             p.id AS postId, p.title AS postTitle, p.slug AS postSlug
      FROM comments c JOIN posts p ON p.id = c.post_id
-     WHERE c.author_id = ? AND c.deleted_at IS NULL${condition}
+     WHERE ${where}
      ORDER BY c.created_at DESC LIMIT ? OFFSET ?`,
     [...values, query.limit, paginationOffset(query.page, query.limit)],
   );
   response.status(200).json({
     data: rows,
-    pagination: { page: query.page, limit: query.limit, total: Number(counts[0].total) },
+    pagination: formatPagination(query.page, query.limit, counts[0].total),
   });
 });
 

@@ -10,7 +10,7 @@ import { env, uploadDir } from "../config/env";
 import { logger } from "../config/logger";
 import { AppError } from "../errors/app-error";
 import { createUniqueSlug, recordSlugRedirect } from "../services/slug.service";
-import { paginationOffset, paginationSchema, parseOrThrow, slugify } from "../utils/request-validation";
+import { dateRangeSchema, formatPagination, paginationOffset, paginationSchema, parseOrThrow, slugify } from "../utils/request-validation";
 
 interface CountRow extends RowDataPacket {
   total: number;
@@ -73,7 +73,7 @@ const commentStatusSchema = z.object({
   reason: z.string().trim().max(1000).nullable().optional(),
 }).strict();
 
-const listQuerySchema = paginationSchema.extend({
+const listQuerySchema = paginationSchema.merge(dateRangeSchema).extend({
   search: z.string().trim().max(100).default(""),
   status: z.enum(["DRAFT", "PENDING", "APPROVED", "REJECTED"]).optional(),
 });
@@ -180,24 +180,24 @@ adminRouter.get("/dashboard", async (_request, response) => {
     SELECT p.id, p.title, p.slug, p.status, p.created_at AS createdAt,
            u.username AS author, c.name AS category
     FROM posts p JOIN users u ON u.id = p.author_id JOIN categories c ON c.id = p.category_id
-    WHERE p.deleted_at IS NULL ORDER BY p.created_at DESC LIMIT 8
+    WHERE p.deleted_at IS NULL ORDER BY p.created_at DESC LIMIT 10
   `);
   const [recentUsers] = await pool.query<RowDataPacket[]>(`
     SELECT id, username, email, role, created_at AS createdAt
-    FROM users WHERE deleted_at IS NULL ORDER BY created_at DESC LIMIT 8
+    FROM users WHERE deleted_at IS NULL ORDER BY created_at DESC LIMIT 10
   `);
   const [recentComments] = await pool.query<RowDataPacket[]>(`
     SELECT c.id, c.content, c.status, c.created_at AS createdAt,
            u.username AS author, p.title AS postTitle, p.slug AS postSlug
     FROM comments c JOIN users u ON u.id = c.author_id JOIN posts p ON p.id = c.post_id
-    WHERE c.deleted_at IS NULL ORDER BY c.created_at DESC LIMIT 8
+    WHERE c.deleted_at IS NULL ORDER BY c.created_at DESC LIMIT 10
   `);
   const [popularPosts] = await pool.query<RowDataPacket[]>(`
     SELECT p.id, p.title, p.slug, COUNT(l.post_id) AS likeCount
     FROM posts p LEFT JOIN post_likes l ON l.post_id = p.id
     WHERE p.status = 'APPROVED' AND p.deleted_at IS NULL
     GROUP BY p.id, p.title, p.slug
-    ORDER BY likeCount DESC, p.published_at DESC LIMIT 8
+    ORDER BY likeCount DESC, p.published_at DESC LIMIT 10
   `);
   const [monthlyPosts] = await pool.query<RowDataPacket[]>(`
     SELECT DATE_FORMAT(created_at, '%Y-%m') AS month, COUNT(*) AS count
@@ -247,7 +247,7 @@ adminRouter.get("/categories", async (request, response) => {
   );
   response.status(200).json({
     data: rows.map((row) => ({ ...mapCategory(row), imagePath: row.image_path ?? null })),
-    pagination: { page: query.page, limit: query.limit, total: Number(countRows[0].total) },
+    pagination: formatPagination(query.page, query.limit, countRows[0].total),
   });
 });
 
@@ -354,7 +354,7 @@ adminRouter.get("/tags", async (request, response) => {
   );
   response.status(200).json({
     data: rows.map(mapTag),
-    pagination: { page: query.page, limit: query.limit, total: Number(countRows[0].total) },
+    pagination: formatPagination(query.page, query.limit, countRows[0].total),
   });
 });
 
@@ -441,6 +441,14 @@ adminRouter.get("/posts", async (request, response) => {
     conditions.push("p.status = ?");
     values.push(query.status);
   }
+  if (query.startDate) {
+    conditions.push("p.created_at >= ?");
+    values.push(`${query.startDate} 00:00:00`);
+  }
+  if (query.endDate) {
+    conditions.push("p.created_at <= ?");
+    values.push(`${query.endDate} 23:59:59.999`);
+  }
   const where = conditions.join(" AND ");
   const [countRows] = await pool.execute<CountRow[]>(
     `SELECT COUNT(*) AS total FROM posts p JOIN users u ON u.id = p.author_id WHERE ${where}`,
@@ -468,7 +476,7 @@ adminRouter.get("/posts", async (request, response) => {
   );
   response.status(200).json({
     data: rows,
-    pagination: { page: query.page, limit: query.limit, total: Number(countRows[0].total) },
+    pagination: formatPagination(query.page, query.limit, countRows[0].total),
   });
 });
 
@@ -831,7 +839,7 @@ adminRouter.delete("/posts/:id", async (request, response) => {
    ========================================================================= */
 adminRouter.get("/comments", async (request, response) => {
   const query = parseOrThrow(
-    paginationSchema.extend({
+    paginationSchema.merge(dateRangeSchema).extend({
       status: z.enum(["PENDING", "APPROVED", "REJECTED"]).optional(),
       search: z.string().trim().max(100).default(""),
     }),
@@ -847,6 +855,14 @@ adminRouter.get("/comments", async (request, response) => {
     const pattern = `%${escapeLike(query.search)}%`;
     conditions.push("(c.content LIKE ? OR u.username LIKE ? OR p.title LIKE ?)");
     values.push(pattern, pattern, pattern);
+  }
+  if (query.startDate) {
+    conditions.push("c.created_at >= ?");
+    values.push(`${query.startDate} 00:00:00`);
+  }
+  if (query.endDate) {
+    conditions.push("c.created_at <= ?");
+    values.push(`${query.endDate} 23:59:59.999`);
   }
   const where = conditions.join(" AND ");
   const [countRows] = await pool.execute<CountRow[]>(
@@ -866,7 +882,7 @@ adminRouter.get("/comments", async (request, response) => {
   );
   response.status(200).json({
     data: rows,
-    pagination: { page: query.page, limit: query.limit, total: Number(countRows[0].total) },
+    pagination: formatPagination(query.page, query.limit, countRows[0].total),
   });
 });
 
@@ -919,7 +935,7 @@ adminRouter.delete("/comments/:id", async (request, response) => {
    ========================================================================= */
 adminRouter.get("/users", async (request, response) => {
   const query = parseOrThrow(
-    paginationSchema.extend({
+    paginationSchema.merge(dateRangeSchema).extend({
       search: z.string().trim().max(100).default(""),
       role: z.enum(["USER", "ADMIN"]).optional(),
       status: z.enum(["active", "inactive"]).optional(),
@@ -940,6 +956,14 @@ adminRouter.get("/users", async (request, response) => {
   if (query.status) {
     conditions.push("u.is_active = ?");
     values.push(query.status === "active" ? 1 : 0);
+  }
+  if (query.startDate) {
+    conditions.push("u.created_at >= ?");
+    values.push(`${query.startDate} 00:00:00`);
+  }
+  if (query.endDate) {
+    conditions.push("u.created_at <= ?");
+    values.push(`${query.endDate} 23:59:59.999`);
   }
 
   const where = conditions.join(" AND ");
@@ -965,7 +989,7 @@ adminRouter.get("/users", async (request, response) => {
   );
   response.status(200).json({
     data: rows,
-    pagination: { page: query.page, limit: query.limit, total: Number(countRows[0].total) },
+    pagination: formatPagination(query.page, query.limit, countRows[0].total),
   });
 });
 
@@ -1124,11 +1148,32 @@ adminRouter.delete("/users/:id", async (request, response) => {
    ========================================================================= */
 adminRouter.get("/contacts", async (request, response) => {
   const query = parseOrThrow(
-    paginationSchema.extend({ status: z.enum(["NEW", "READ", "RESOLVED"]).optional() }),
+    paginationSchema.merge(dateRangeSchema).extend({
+      status: z.enum(["NEW", "READ", "RESOLVED"]).optional(),
+      search: z.string().trim().max(100).default(""),
+    }),
     request.query,
   );
-  const where = query.status ? "WHERE status = ?" : "";
-  const values = query.status ? [query.status] : [];
+  const conditions: string[] = [];
+  const values: Array<string | number> = [];
+  if (query.status) {
+    conditions.push("status = ?");
+    values.push(query.status);
+  }
+  if (query.search) {
+    const pattern = `%${escapeLike(query.search)}%`;
+    conditions.push("(name LIKE ? OR email LIKE ? OR subject LIKE ? OR message LIKE ?)");
+    values.push(pattern, pattern, pattern, pattern);
+  }
+  if (query.startDate) {
+    conditions.push("created_at >= ?");
+    values.push(`${query.startDate} 00:00:00`);
+  }
+  if (query.endDate) {
+    conditions.push("created_at <= ?");
+    values.push(`${query.endDate} 23:59:59.999`);
+  }
+  const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
   const [countRows] = await pool.execute<CountRow[]>(
     `SELECT COUNT(*) AS total FROM contact_messages ${where}`,
     values,
@@ -1140,7 +1185,7 @@ adminRouter.get("/contacts", async (request, response) => {
   );
   response.status(200).json({
     data: rows,
-    pagination: { page: query.page, limit: query.limit, total: Number(countRows[0].total) },
+    pagination: formatPagination(query.page, query.limit, countRows[0].total),
   });
 });
 
@@ -1171,28 +1216,41 @@ adminRouter.patch("/contacts/:id/status", updateContactStatusHandler);
    ========================================================================= */
 adminRouter.get("/images", async (request, response) => {
   const query = parseOrThrow(
-    paginationSchema.extend({ search: z.string().trim().max(100).default("") }),
+    paginationSchema.merge(dateRangeSchema).extend({ search: z.string().trim().max(100).default("") }),
     request.query,
   );
   const pattern = `%${escapeLike(query.search)}%`;
+  const conditions = [
+    "(i.file_name LIKE ? OR i.original_file_name LIKE ? OR u.username LIKE ?)",
+  ];
+  const values: Array<string | number> = [pattern, pattern, pattern];
+  if (query.startDate) {
+    conditions.push("i.created_at >= ?");
+    values.push(`${query.startDate} 00:00:00`);
+  }
+  if (query.endDate) {
+    conditions.push("i.created_at <= ?");
+    values.push(`${query.endDate} 23:59:59.999`);
+  }
+  const where = `WHERE ${conditions.join(" AND ")}`;
   const [countRows] = await pool.execute<CountRow[]>(
     `SELECT COUNT(*) AS total FROM images i
      JOIN users u ON u.id = i.uploaded_by_id
-     WHERE i.file_name LIKE ? OR i.original_file_name LIKE ? OR u.username LIKE ?`,
-    [pattern, pattern, pattern],
+     ${where}`,
+    values,
   );
   const [rows] = await pool.execute<RowDataPacket[]>(
     `SELECT i.id, i.file_name AS fileName, i.original_file_name AS originalFileName,
             i.file_path AS path, i.mime_type AS mimeType, i.file_size AS fileSize,
             i.created_at AS createdAt, u.id AS uploadedById, u.username AS uploadedBy
      FROM images i JOIN users u ON u.id = i.uploaded_by_id
-     WHERE i.file_name LIKE ? OR i.original_file_name LIKE ? OR u.username LIKE ?
+     ${where}
      ORDER BY i.created_at DESC LIMIT ? OFFSET ?`,
-    [pattern, pattern, pattern, query.limit, paginationOffset(query.page, query.limit)],
+    [...values, query.limit, paginationOffset(query.page, query.limit)],
   );
   response.status(200).json({
     data: rows,
-    pagination: { page: query.page, limit: query.limit, total: Number(countRows[0].total) },
+    pagination: formatPagination(query.page, query.limit, countRows[0].total),
   });
 });
 
@@ -1301,24 +1359,29 @@ adminRouter.delete("/images/:id", async (request, response) => {
    9. SEO MANAGEMENT
    ========================================================================= */
 adminRouter.get("/seo", async (request, response) => {
-  const search = typeof request.query.search === "string" ? request.query.search.trim() : "";
-  const type = typeof request.query.type === "string" ? request.query.type.trim() : "all";
+  const query = parseOrThrow(
+    paginationSchema.extend({
+      search: z.string().trim().max(100).default(""),
+      type: z.string().trim().default("all"),
+    }),
+    request.query,
+  );
 
   const conditions: string[] = [];
-  const params: string[] = [];
+  const params: (string | number)[] = [];
 
-  if (type === "page") {
+  if (query.type === "page") {
     conditions.push("s.page_key IS NOT NULL");
-  } else if (type === "post") {
+  } else if (query.type === "post") {
     conditions.push("s.post_id IS NOT NULL");
-  } else if (type === "category") {
+  } else if (query.type === "category") {
     conditions.push("s.category_id IS NOT NULL");
-  } else if (type === "tag") {
+  } else if (query.type === "tag") {
     conditions.push("s.tag_id IS NOT NULL");
   }
 
-  if (search) {
-    const pattern = `%${escapeLike(search)}%`;
+  if (query.search) {
+    const pattern = `%${escapeLike(query.search)}%`;
     conditions.push(
       "(s.title LIKE ? OR s.description LIKE ? OR s.page_key LIKE ? OR p.title LIKE ? OR c.name LIKE ? OR t.name LIKE ?)",
     );
@@ -1326,6 +1389,15 @@ adminRouter.get("/seo", async (request, response) => {
   }
 
   const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+
+  const [countRows] = await pool.execute<CountRow[]>(`
+    SELECT COUNT(*) AS total
+    FROM seo_metadata s
+    LEFT JOIN posts p ON p.id = s.post_id
+    LEFT JOIN categories c ON c.id = s.category_id
+    LEFT JOIN tags t ON t.id = s.tag_id
+    ${whereClause}
+  `, params);
 
   const [rows] = await pool.execute<RowDataPacket[]>(`
     SELECT s.id, s.post_id AS postId, s.category_id AS categoryId, s.tag_id AS tagId, s.page_key AS pageKey,
@@ -1342,8 +1414,13 @@ adminRouter.get("/seo", async (request, response) => {
     LEFT JOIN tags t ON t.id = s.tag_id
     ${whereClause}
     ORDER BY s.page_key IS NOT NULL DESC, s.updated_at DESC
-  `, params);
-  response.status(200).json({ data: rows });
+    LIMIT ? OFFSET ?
+  `, [...params, query.limit, paginationOffset(query.page, query.limit)]);
+
+  response.status(200).json({
+    data: rows,
+    pagination: formatPagination(query.page, query.limit, countRows[0].total),
+  });
 });
 
 adminRouter.get("/seo/:ownerType/:ownerId", async (request, response) => {

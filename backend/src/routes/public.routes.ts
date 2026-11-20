@@ -7,7 +7,7 @@ import { authenticate, optionalAuthenticate } from "../middleware/authenticate";
 import { pool } from "../config/mysql";
 import { env } from "../config/env";
 import { AppError } from "../errors/app-error";
-import { paginationOffset, paginationSchema, parseOrThrow } from "../utils/request-validation";
+import { dateRangeSchema, formatPagination, paginationOffset, paginationSchema, parseOrThrow } from "../utils/request-validation";
 
 interface CountRow extends RowDataPacket {
   total: number;
@@ -129,7 +129,7 @@ publicRouter.get("/homepage", async (_request, response) => {
    ========================================================================= */
 publicRouter.get("/posts", async (request, response) => {
   const query = parseOrThrow(
-    paginationSchema.extend({
+    paginationSchema.merge(dateRangeSchema).extend({
       search: z.string().trim().max(100).default(""),
       q: z.string().trim().max(100).optional(),
       category: z.string().trim().max(160).optional(),
@@ -160,6 +160,14 @@ publicRouter.get("/posts", async (request, response) => {
       "EXISTS (SELECT 1 FROM post_tags pt JOIN tags t ON t.id = pt.tag_id WHERE pt.post_id = p.id AND t.slug = ? AND t.is_active = TRUE)",
     );
     values.push(query.tag);
+  }
+  if (query.startDate) {
+    conditions.push("p.published_at >= ?");
+    values.push(`${query.startDate} 00:00:00`);
+  }
+  if (query.endDate) {
+    conditions.push("p.published_at <= ?");
+    values.push(`${query.endDate} 23:59:59.999`);
   }
   const where = conditions.join(" AND ");
   const orderBy = query.sort === "popular" ? "likeCount DESC, p.published_at DESC" : "p.published_at DESC";
@@ -216,7 +224,7 @@ publicRouter.get("/posts", async (request, response) => {
 
   response.status(200).json({
     data: postsWithTags,
-    pagination: { page: query.page, limit: query.limit, total: Number(counts[0].total) },
+    pagination: formatPagination(query.page, query.limit, counts[0].total),
   });
 });
 
@@ -416,7 +424,7 @@ publicRouter.get("/categories", async (request, response) => {
   );
   response.status(200).json({
     data: rows,
-    pagination: { page: query.page, limit: query.limit, total: Number(counts[0].total) },
+    pagination: formatPagination(query.page, query.limit, counts[0].total),
   });
 });
 
@@ -463,7 +471,7 @@ const categoryPostsHandler = async (request: Request, response: Response) => {
   );
   response.status(200).json({
     data: { category, posts },
-    pagination: { page: query.page, limit: query.limit, total: Number(counts[0].total) },
+    pagination: formatPagination(query.page, query.limit, counts[0].total),
   });
 };
 
@@ -491,7 +499,7 @@ publicRouter.get("/tags", async (request, response) => {
   );
   response.status(200).json({
     data: rows,
-    pagination: { page: query.page, limit: query.limit, total: Number(counts[0].total) },
+    pagination: formatPagination(query.page, query.limit, counts[0].total),
   });
 });
 
@@ -538,7 +546,7 @@ const tagPostsHandler = async (request: Request, response: Response) => {
   );
   response.status(200).json({
     data: { tag, posts },
-    pagination: { page: query.page, limit: query.limit, total: Number(counts[0].total) },
+    pagination: formatPagination(query.page, query.limit, counts[0].total),
   });
 };
 

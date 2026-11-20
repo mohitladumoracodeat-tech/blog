@@ -8,7 +8,7 @@ import { logger } from "../config/logger";
 import { uploadDir } from "../config/env";
 import { AppError } from "../errors/app-error";
 import { authenticate } from "../middleware/authenticate";
-import { paginationOffset, paginationSchema, parseOrThrow } from "../utils/request-validation";
+import { formatPagination, paginationOffset, paginationSchema, parseOrThrow } from "../utils/request-validation";
 import type { RowDataPacket } from "mysql2";
 
 const uploadDirectory = uploadDir;
@@ -63,7 +63,7 @@ uploadRouter.get("/", async (request, response) => {
   );
   response.status(200).json({
     data: rows,
-    pagination: { page: query.page, limit: query.limit, total: Number(counts[0].total) },
+    pagination: formatPagination(query.page, query.limit, counts[0].total),
   });
 });
 

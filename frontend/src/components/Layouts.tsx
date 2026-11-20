@@ -715,11 +715,11 @@ export function AdminLayout() {
       />
 
       {/* ════════════════════════════════════════════════════════════════
-          ADMIN SIDEBAR (Sticky, Collapsible 64/20 on Desktop, Drawer on Mobile)
+          ADMIN SIDEBAR (Fixed on Desktop, Independent Scroll, Mobile Drawer)
       ════════════════════════════════════════════════════════════════ */}
       <aside
-        className={`fixed inset-y-0 left-0 z-40 flex shrink-0 flex-col bg-[#12231b] dark:bg-[#0e1a14] text-white transition-all duration-300 ease-in-out lg:sticky lg:top-0 lg:h-screen lg:translate-x-0 ${
-          mobileOpen ? "translate-x-0 w-72 shadow-2xl" : "-translate-x-full"
+        className={`fixed inset-y-0 left-0 z-40 flex shrink-0 flex-col bg-[#12231b] dark:bg-[#0e1a14] text-white transition-all duration-300 ease-in-out h-screen overflow-y-auto ${
+          mobileOpen ? "translate-x-0 w-72 shadow-2xl" : "-translate-x-full lg:translate-x-0"
         } ${collapsed ? "lg:w-20" : "lg:w-64"}`}
       >
         {/* Brand Header */}
@@ -849,7 +849,9 @@ export function AdminLayout() {
       {/* ════════════════════════════════════════════════════════════════
           ADMIN MAIN VIEW AREA
       ════════════════════════════════════════════════════════════════ */}
-      <section className="flex min-w-0 flex-1 flex-col overflow-x-hidden">
+      <section className={`flex min-w-0 flex-1 flex-col overflow-x-hidden transition-all duration-300 ${
+        collapsed ? "lg:pl-20" : "lg:pl-64"
+      }`}>
         {/* Editorial Control Center Top Bar */}
         <header className="sticky top-0 z-20 flex h-[68px] shrink-0 items-center justify-between border-b border-black/[.08] dark:border-white/[.08] bg-surface/95 dark:bg-surface/95 backdrop-blur-md px-4 sm:px-8 transition-colors duration-200">
           {/* Left: Mobile Drawer Trigger + Breadcrumbs */}
@@ -990,8 +992,26 @@ export function UserLayout() {
   const location = useLocation();
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem("user_sidebar_collapsed") === "true";
+    } catch {
+      return false;
+    }
+  });
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  function toggleSidebar() {
+    setSidebarCollapsed((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem("user_sidebar_collapsed", String(next));
+      } catch {
+        // no-op
+      }
+      return next;
+    });
+  }
 
   // Close profile dropdown on outside click
   useEffect(() => {
@@ -1043,8 +1063,152 @@ export function UserLayout() {
   return (
     <div className="min-h-screen bg-paper dark:bg-background text-ink transition-colors duration-200">
       {/* ════════════════════════════════════════════════════════════════
-          1. TOP MAGAZINE EDITION TICKER
+          FIXED DESKTOP SIDEBAR (Fixed, Independent Scroll, Collapsible)
           ════════════════════════════════════════════════════════════════ */}
+      <aside
+        className={`fixed inset-y-0 left-0 z-40 hidden lg:flex flex-col border-r border-black/[.08] dark:border-white/[.08] bg-surface dark:bg-[#121614] text-ink transition-all duration-300 ease-in-out h-screen overflow-y-auto ${
+          sidebarCollapsed ? "w-20" : "w-64"
+        }`}
+      >
+        {/* Brand Header */}
+        <div
+          className={`flex h-16 shrink-0 items-center border-b border-black/[.08] dark:border-white/[.08] px-4 transition-all ${
+            sidebarCollapsed ? "justify-center" : "justify-between"
+          }`}
+        >
+          <Link
+            to="/dashboard"
+            className="flex items-center gap-2.5 overflow-hidden"
+            title="Fieldnotes Creator Desk"
+          >
+            <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-moss text-white dark:bg-primary dark:text-[#171B19] shadow-sm font-bold">
+              <BookOpen size={18} />
+            </span>
+            {!sidebarCollapsed && (
+              <span className="font-display text-xl font-bold tracking-tight text-ink">
+                Fieldnotes<span className="text-moss dark:text-primary">.</span>
+              </span>
+            )}
+          </Link>
+          <button
+            type="button"
+            onClick={toggleSidebar}
+            aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+            title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+            className="hidden lg:grid size-7 place-items-center rounded-lg border border-black/10 dark:border-white/10 text-muted hover:bg-paper dark:hover:bg-surface-elevated hover:text-ink transition"
+          >
+            {sidebarCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
+          </button>
+        </div>
+
+        {/* Sidebar Nav Items */}
+        <div className="no-scrollbar flex flex-1 flex-col overflow-y-auto p-3 space-y-4">
+          {!sidebarCollapsed ? (
+            <p className="px-3 text-[10px] font-extrabold uppercase tracking-[0.22em] text-muted">
+              Creator Desk
+            </p>
+          ) : (
+            <div className="mx-auto my-1 w-6 border-t border-black/10 dark:border-white/10" />
+          )}
+
+          <nav className="space-y-1">
+            {userNavLinks.map(({ to, label, icon: Icon, end }) => (
+              <NavLink
+                key={to}
+                to={to}
+                end={end}
+                title={sidebarCollapsed ? label : undefined}
+                className={({ isActive }) =>
+                  `group flex items-center gap-3 rounded-2xl py-2.5 text-sm font-semibold transition ${
+                    sidebarCollapsed ? "justify-center px-0" : "px-3.5"
+                  } ${
+                    isActive
+                      ? "bg-moss text-white dark:bg-primary dark:text-[#171B19] shadow-sm"
+                      : "text-muted hover:bg-paper dark:hover:bg-surface-elevated hover:text-ink"
+                  }`
+                }
+              >
+                <Icon size={18} className="shrink-0 transition-transform group-hover:scale-110" />
+                {!sidebarCollapsed && <span>{label}</span>}
+              </NavLink>
+            ))}
+          </nav>
+
+          {/* Publication Desk CTA */}
+          {!sidebarCollapsed ? (
+            <div className="rounded-2xl border border-moss/20 dark:border-primary/20 bg-moss/5 dark:bg-primary/10 p-3.5 shadow-sm mt-auto">
+              <div className="flex items-center gap-2 text-moss dark:text-primary">
+                <Sparkles size={15} />
+                <span className="text-[11px] font-bold uppercase tracking-wider">Publication Desk</span>
+              </div>
+              <p className="mt-1 text-xs text-muted leading-relaxed">
+                Ready to publish your insights? Craft an article and submit for review.
+              </p>
+              <Link
+                to="/dashboard/posts/new"
+                className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-moss px-3 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-ink dark:bg-primary dark:text-[#171B19] dark:hover:bg-primary/90"
+              >
+                <Plus size={13} /> Write Story
+              </Link>
+            </div>
+          ) : (
+            <Link
+              to="/dashboard/posts/new"
+              className="grid size-10 place-items-center rounded-xl bg-moss text-white shadow-sm transition hover:bg-ink dark:bg-primary dark:text-[#171B19] mx-auto mt-auto"
+              title="Write a new story"
+            >
+              <PenLine size={16} />
+            </Link>
+          )}
+        </div>
+
+        {/* Sidebar Footer User Info */}
+        <div className="shrink-0 border-t border-black/[.08] dark:border-white/[.08] p-3">
+          <div
+            className={`flex items-center rounded-xl bg-paper dark:bg-surface-elevated p-2 transition-all ${
+              sidebarCollapsed ? "justify-center" : "gap-2.5"
+            }`}
+          >
+            <Link
+              to="/dashboard/profile"
+              title="Profile & Settings"
+              className="flex items-center gap-2.5 min-w-0 flex-1 hover:opacity-85 transition"
+            >
+              <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-moss/10 dark:bg-primary/20 text-xs font-bold text-moss dark:text-primary">
+                {user?.username?.slice(0, 1).toUpperCase() ?? "U"}
+              </span>
+              {!sidebarCollapsed && (
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-xs font-bold text-ink">{user?.username}</p>
+                  <p className="truncate text-[10px] text-muted">{user?.email}</p>
+                </div>
+              )}
+            </Link>
+            {!sidebarCollapsed && (
+              <button
+                type="button"
+                onClick={handleLogout}
+                title="Sign out"
+                className="grid size-7 place-items-center rounded-lg text-muted transition hover:bg-red-500/20 hover:text-red-500"
+              >
+                <LogOut size={14} />
+              </button>
+            )}
+          </div>
+        </div>
+      </aside>
+
+      {/* ════════════════════════════════════════════════════════════════
+          USER MAIN VIEW AREA (Offset by fixed sidebar on desktop)
+          ════════════════════════════════════════════════════════════════ */}
+      <div
+        className={`flex min-w-0 flex-1 flex-col transition-all duration-300 ${
+          sidebarCollapsed ? "lg:pl-20" : "lg:pl-64"
+        }`}
+      >
+        {/* ════════════════════════════════════════════════════════════════
+            1. TOP MAGAZINE EDITION TICKER
+            ════════════════════════════════════════════════════════════════ */}
       <div className="border-b border-black/[.06] dark:border-white/[.06] bg-surface/50 dark:bg-surface-elevated/40 text-[11px] font-medium tracking-wide text-muted py-1.5 px-4 sm:px-8">
         <div className="mx-auto flex max-w-7xl items-center justify-between">
           <div className="flex items-center gap-3">
@@ -1223,109 +1387,12 @@ export function UserLayout() {
         </div>
       </header>
 
-      {/* ════════════════════════════════════════════════════════════════
-          3. MAIN LAYOUT: DESKTOP SIDEBAR + CONTENT OUTLET
-          ════════════════════════════════════════════════════════════════ */}
-      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 sm:py-10 lg:px-8">
-        <div className="flex gap-8 lg:gap-10 items-start">
-          {/* DESKTOP SIDEBAR */}
-          <aside
-            className={`hidden shrink-0 transition-all duration-300 lg:block ${
-              sidebarCollapsed ? "w-20" : "w-64"
-            }`}
-          >
-            <div className="sticky top-24 space-y-4">
-              {/* Main Navigation Card */}
-              <div className="overflow-hidden rounded-3xl border border-black/[.08] dark:border-white/[.08] bg-surface p-3.5 shadow-card">
-                <div className="mb-3 flex items-center justify-between border-b border-black/[.06] dark:border-white/[.06] px-2.5 pb-2.5">
-                  {!sidebarCollapsed && (
-                    <p className="text-[10px] font-extrabold uppercase tracking-[0.22em] text-muted">
-                      Creator Desk
-                    </p>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => setSidebarCollapsed((prev) => !prev)}
-                    className="grid size-6 place-items-center rounded-lg text-muted hover:bg-paper dark:hover:bg-surface-elevated hover:text-ink transition mx-auto lg:mr-0"
-                    title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-                    aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-                  >
-                    <ChevronRight
-                      size={14}
-                      className={`transition-transform duration-200 ${sidebarCollapsed ? "" : "rotate-180"}`}
-                    />
-                  </button>
-                </div>
-
-                <nav className="space-y-1">
-                  {userNavLinks.map(({ to, label, icon: Icon, end }) => (
-                    <NavLink
-                      key={to}
-                      to={to}
-                      end={end}
-                      title={label}
-                      className={({ isActive }) =>
-                        `group flex items-center gap-3 rounded-2xl px-3.5 py-2.5 text-sm font-semibold transition ${
-                          isActive
-                            ? "bg-moss text-white dark:bg-primary dark:text-[#171B19] shadow-sm"
-                            : "text-muted hover:bg-paper dark:hover:bg-surface-elevated hover:text-ink"
-                        } ${sidebarCollapsed ? "justify-center px-0" : ""}`
-                      }
-                    >
-                      <Icon size={18} className="shrink-0 transition-transform group-hover:scale-110" />
-                      {!sidebarCollapsed && <span>{label}</span>}
-                    </NavLink>
-                  ))}
-                </nav>
-              </div>
-
-              {/* Write Story CTA Banner */}
-              {!sidebarCollapsed ? (
-                <div className="rounded-3xl border border-moss/20 dark:border-primary/20 bg-moss/5 dark:bg-primary/10 p-4 shadow-sm">
-                  <div className="flex items-center gap-2 text-moss dark:text-primary">
-                    <Sparkles size={16} />
-                    <span className="text-xs font-bold uppercase tracking-wider">Publication Desk</span>
-                  </div>
-                  <p className="mt-1.5 text-xs text-muted leading-relaxed">
-                    Ready to publish your insights? Craft an article and submit for review.
-                  </p>
-                  <Link
-                    to="/dashboard/posts/new"
-                    className="mt-3.5 flex w-full items-center justify-center gap-2 rounded-xl bg-moss px-4 py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-ink dark:bg-primary dark:text-[#171B19] dark:hover:bg-primary/90"
-                  >
-                    <Plus size={14} /> Write Story
-                  </Link>
-                </div>
-              ) : (
-                <Link
-                  to="/dashboard/posts/new"
-                  className="grid size-12 place-items-center rounded-2xl bg-moss text-white shadow-sm transition hover:bg-ink dark:bg-primary dark:text-[#171B19] mx-auto"
-                  title="Write a new story"
-                >
-                  <PenLine size={18} />
-                </Link>
-              )}
-
-              {/* Bottom Author Card */}
-              {!sidebarCollapsed && (
-                <div className="rounded-2xl border border-black/[.06] dark:border-white/[.06] bg-surface/70 p-3.5 text-xs text-muted">
-                  <div className="flex items-center justify-between">
-                    <span className="font-semibold text-ink">Fieldnotes Studio</span>
-                    <span className="rounded-full bg-paper dark:bg-surface-elevated px-2 py-0.5 text-[10px] font-bold text-muted">
-                      v2026
-                    </span>
-                  </div>
-                  <p className="mt-1 text-[11px] text-muted">Editorial guidelines apply to all published dispatches.</p>
-                </div>
-              )}
-            </div>
-          </aside>
-
-          {/* MAIN OUTLET FOR USER PAGES */}
-          <main className="min-w-0 flex-1">
-            <Outlet />
-          </main>
-        </div>
+        {/* ════════════════════════════════════════════════════════════════
+            3. MAIN OUTLET FOR USER PAGES
+            ════════════════════════════════════════════════════════════════ */}
+        <main className="mx-auto w-full max-w-7xl p-4 sm:p-6 lg:p-8 flex-1">
+          <Outlet />
+        </main>
       </div>
 
       {/* ════════════════════════════════════════════════════════════════

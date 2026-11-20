@@ -18,7 +18,7 @@ import {
   X,
 } from "lucide-react";
 import { Link } from "react-router-dom";
-import { Button, EmptyState, Field, Loading, Notice, PageHeading, Pagination, SelectField, TextArea } from "../components/UI";
+import { Button, DateRangeFilter, EmptyState, Field, Loading, Notice, PageHeading, Pagination, SelectField, TextArea } from "../components/UI";
 import { Seo } from "../components/Seo";
 import { api, getErrorMessage, imageUrl } from "../lib/api";
 import { confirmAction, confirmDestructive, showError, showSuccess, showToast } from "../lib/alerts";
@@ -108,6 +108,9 @@ function useAdminData<T>(url: string, autoRefreshMs: number = 60000) {
       .then((res) => {
         if (active) {
           const resBody = res.data;
+          if (resBody && typeof resBody === "object" && "pagination" in resBody && resBody.data && typeof resBody.data === "object") {
+            (resBody.data as any).pagination = resBody.pagination;
+          }
           if (resBody && typeof resBody === "object" && Array.isArray(resBody.data) && "pagination" in resBody) {
             setData(resBody as unknown as T);
           } else if (resBody && typeof resBody === "object" && "data" in resBody) {
@@ -453,10 +456,12 @@ export function AdminPostsPage() {
   const [search, setSearch] = useState("");
   const [input, setInput] = useState("");
   const [status, setStatus] = useState(new URLSearchParams(window.location.search).get("status") ?? "");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
   const url = useMemo(
     () =>
-      `/admin/posts?page=${page}&limit=15&search=${encodeURIComponent(search)}${status ? `&status=${status}` : ""}`,
-    [page, search, status],
+      `/admin/posts?page=${page}&limit=10&search=${encodeURIComponent(search)}${status ? `&status=${status}` : ""}${startDate ? `&startDate=${startDate}` : ""}${endDate ? `&endDate=${endDate}` : ""}`,
+    [page, search, status, startDate, endDate],
   );
   const { data, loading, error, refresh } = useAdminData<PageResult<AdminPost>>(url);
   const postsList: AdminPost[] = Array.isArray(data)
@@ -542,41 +547,60 @@ export function AdminPostsPage() {
       )}
 
       {/* Filter and Full-Width Search Bar */}
-      <div className="mb-8 flex flex-col gap-3 sm:flex-row sm:items-center">
-        <form
-          onSubmit={(event) => {
-            event.preventDefault();
-            setSearch(input.trim());
-            setPage(1);
-          }}
-          className="relative flex-1"
-        >
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-muted" size={18} />
-          <input
-            className="field pl-11 h-12 text-sm shadow-sm"
-            placeholder="Search publication catalog by title, slug, or author..."
-            value={input}
-            onChange={(event) => setInput(event.target.value)}
-          />
-        </form>
-
-        <div className="sm:w-60">
-          <SelectField
-            label=""
-            className="h-12 text-sm shadow-sm mt-0"
-            value={status}
-            onChange={(event) => {
-              setStatus(event.target.value);
+      <div className="mb-8 flex flex-col gap-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              setSearch(input.trim());
               setPage(1);
             }}
+            className="relative flex-1"
           >
-            <option value="">All statuses</option>
-            <option value="PENDING">Pending Review</option>
-            <option value="APPROVED">Published (Live)</option>
-            <option value="DRAFT">Draft</option>
-            <option value="REJECTED">Rejected</option>
-          </SelectField>
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-muted" size={18} />
+            <input
+              className="field pl-11 h-12 text-sm shadow-sm"
+              placeholder="Search publication catalog by title, slug, or author..."
+              value={input}
+              onChange={(event) => setInput(event.target.value)}
+            />
+          </form>
+
+          <div className="sm:w-60">
+            <SelectField
+              label=""
+              className="h-12 text-sm shadow-sm mt-0"
+              value={status}
+              onChange={(event) => {
+                setStatus(event.target.value);
+                setPage(1);
+              }}
+            >
+              <option value="">All statuses</option>
+              <option value="PENDING">Pending Review</option>
+              <option value="APPROVED">Published (Live)</option>
+              <option value="DRAFT">Draft</option>
+              <option value="REJECTED">Rejected</option>
+            </SelectField>
+          </div>
         </div>
+        <DateRangeFilter
+          startDate={startDate}
+          endDate={endDate}
+          onStartDateChange={(val) => {
+            setStartDate(val);
+            setPage(1);
+          }}
+          onEndDateChange={(val) => {
+            setEndDate(val);
+            setPage(1);
+          }}
+          onClear={() => {
+            setStartDate("");
+            setEndDate("");
+            setPage(1);
+          }}
+        />
       </div>
 
       {loading ? (
@@ -715,7 +739,7 @@ export function AdminPostsPage() {
           {(paginationData || data?.pagination) && (
             <Pagination
               page={paginationData?.page ?? data?.pagination?.page ?? 1}
-              limit={paginationData?.limit ?? data?.pagination?.limit ?? 15}
+              limit={paginationData?.limit ?? data?.pagination?.limit ?? 10}
               total={paginationData?.total ?? data?.pagination?.total ?? 0}
               onChange={setPage}
             />
@@ -735,7 +759,7 @@ export function AdminTaxonomyPage({ kind }: { kind: "categories" | "tags" }) {
   const [search, setSearch] = useState("");
   const [input, setInput] = useState("");
   const url = useMemo(
-    () => `/admin/${kind}?page=${page}&limit=20&search=${encodeURIComponent(search)}`,
+    () => `/admin/${kind}?page=${page}&limit=10&search=${encodeURIComponent(search)}`,
     [kind, page, search],
   );
   const { data, loading, error, refresh } = useAdminData<PageResult<Taxonomy>>(url);
@@ -1035,7 +1059,7 @@ export function AdminTaxonomyPage({ kind }: { kind: "categories" | "tags" }) {
           {(paginationData || data?.pagination) && (
             <Pagination
               page={paginationData?.page ?? data?.pagination?.page ?? 1}
-              limit={paginationData?.limit ?? data?.pagination?.limit ?? 20}
+              limit={paginationData?.limit ?? data?.pagination?.limit ?? 10}
               total={paginationData?.total ?? data?.pagination?.total ?? 0}
               onChange={setPage}
             />
@@ -1049,9 +1073,11 @@ export function AdminTaxonomyPage({ kind }: { kind: "categories" | "tags" }) {
 export function AdminCommentsPage() {
   const [page, setPage] = useState(1);
   const [status, setStatus] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
   const url = useMemo(
-    () => `/admin/comments?page=${page}&limit=20${status ? `&status=${status}` : ""}`,
-    [page, status],
+    () => `/admin/comments?page=${page}&limit=10${status ? `&status=${status}` : ""}${startDate ? `&startDate=${startDate}` : ""}${endDate ? `&endDate=${endDate}` : ""}`,
+    [page, status, startDate, endDate],
   );
   const { data, loading, error, refresh } = useAdminData<PageResult<AdminComment>>(url);
   const commentsList: AdminComment[] = Array.isArray(data)
@@ -1104,20 +1130,39 @@ export function AdminCommentsPage() {
         description="Inspect submitted reader feedback, approve thoughtful perspectives, or discard inappropriate messages."
       />
 
-      <div className="mb-6 max-w-xs">
-        <SelectField
-          label="Filter by Review Status"
-          value={status}
-          onChange={(event) => {
-            setStatus(event.target.value);
+      <div className="mb-6 flex flex-wrap items-end gap-4">
+        <div className="w-full sm:w-64">
+          <SelectField
+            label="Filter by Review Status"
+            value={status}
+            onChange={(event) => {
+              setStatus(event.target.value);
+              setPage(1);
+            }}
+          >
+            <option value="">All statuses</option>
+            <option value="PENDING">Pending Review</option>
+            <option value="APPROVED">Approved (Public)</option>
+            <option value="REJECTED">Rejected</option>
+          </SelectField>
+        </div>
+        <DateRangeFilter
+          startDate={startDate}
+          endDate={endDate}
+          onStartDateChange={(val) => {
+            setStartDate(val);
             setPage(1);
           }}
-        >
-          <option value="">All statuses</option>
-          <option value="PENDING">Pending Review</option>
-          <option value="APPROVED">Approved (Public)</option>
-          <option value="REJECTED">Rejected</option>
-        </SelectField>
+          onEndDateChange={(val) => {
+            setEndDate(val);
+            setPage(1);
+          }}
+          onClear={() => {
+            setStartDate("");
+            setEndDate("");
+            setPage(1);
+          }}
+        />
       </div>
 
       {actionError && (
@@ -1212,7 +1257,7 @@ export function AdminCommentsPage() {
           {(paginationData || data?.pagination) && (
             <Pagination
               page={paginationData?.page ?? data?.pagination?.page ?? 1}
-              limit={paginationData?.limit ?? data?.pagination?.limit ?? 20}
+              limit={paginationData?.limit ?? data?.pagination?.limit ?? 10}
               total={paginationData?.total ?? data?.pagination?.total ?? 0}
               onChange={setPage}
             />
@@ -1249,16 +1294,20 @@ export function AdminUsersPage() {
   const [input, setInput] = useState("");
   const [roleFilter, setRoleFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
 
   const url = useMemo(() => {
     const q = new URLSearchParams();
     q.set("page", String(page));
-    q.set("limit", "15");
+    q.set("limit", "10");
     if (search) q.set("search", search);
     if (roleFilter) q.set("role", roleFilter);
     if (statusFilter) q.set("status", statusFilter);
+    if (startDate) q.set("startDate", startDate);
+    if (endDate) q.set("endDate", endDate);
     return `/admin/users?${q.toString()}`;
-  }, [page, search, roleFilter, statusFilter]);
+  }, [page, search, roleFilter, statusFilter, startDate, endDate]);
 
   const { data, loading, error, refresh } = useAdminData<PageResult<AdminUserDetail>>(url);
   const usersList: AdminUserDetail[] = Array.isArray(data)
@@ -1445,7 +1494,7 @@ export function AdminUsersPage() {
           {(paginationData || data?.pagination) && (
             <Pagination
               page={paginationData?.page ?? data?.pagination?.page ?? 1}
-              limit={paginationData?.limit ?? data?.pagination?.limit ?? 15}
+              limit={paginationData?.limit ?? data?.pagination?.limit ?? 10}
               total={paginationData?.total ?? data?.pagination?.total ?? 0}
               onChange={setPage}
             />
@@ -2479,7 +2528,7 @@ export function AdminContactsPage() {
           {(paginationData || data?.pagination) && (
             <Pagination
               page={paginationData?.page ?? data?.pagination?.page ?? 1}
-              limit={paginationData?.limit ?? data?.pagination?.limit ?? 20}
+              limit={paginationData?.limit ?? data?.pagination?.limit ?? 10}
               total={paginationData?.total ?? data?.pagination?.total ?? 0}
               onChange={setPage}
             />

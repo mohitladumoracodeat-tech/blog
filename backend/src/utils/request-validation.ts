@@ -17,8 +17,26 @@ export function parseOrThrow<T>(schema: z.ZodType<T>, value: unknown): T {
 
 export const paginationSchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
-  limit: z.coerce.number().int().min(1).max(100).default(20),
+  limit: z.coerce.number().int().min(1).max(100).default(10),
 });
+
+export const dateRangeSchema = z.object({
+  startDate: z.string().trim().regex(/^\d{4}-\d{2}-\d{2}/, "startDate must be YYYY-MM-DD").optional(),
+  endDate: z.string().trim().regex(/^\d{4}-\d{2}-\d{2}/, "endDate must be YYYY-MM-DD").optional(),
+});
+
+export function formatPagination(page: number, limit: number, total: number | bigint) {
+  const totalRecords = Number(total) || 0;
+  const totalPages = Math.max(1, Math.ceil(totalRecords / limit));
+  return {
+    page,
+    currentPage: page,
+    limit,
+    total: totalRecords,
+    totalRecords,
+    totalPages,
+  };
+}
 
 export function paginationOffset(page: number, limit: number): number {
   return (page - 1) * limit;

@@ -595,8 +595,10 @@ export function Pagination({
   total: number;
   onChange: (page: number) => void;
 }) {
+  if (total <= 0) return null;
   const pages = Math.max(1, Math.ceil(total / limit));
-  if (pages <= 1) return null;
+  const from = (page - 1) * limit + 1;
+  const to = Math.min(page * limit, total);
 
   const getPageNumbers = () => {
     if (pages <= 5) {
@@ -620,9 +622,10 @@ export function Pagination({
   const pageNumbers = getPageNumbers();
 
   return (
-    <div className="mt-10 flex flex-col gap-4 border-t border-black/[.08] dark:border-white/[.08] pt-6 sm:flex-row sm:items-center sm:justify-between text-sm text-muted">
+    <div className="mt-8 flex flex-col gap-4 border-t border-black/[.08] dark:border-white/[.08] pt-6 sm:flex-row sm:items-center sm:justify-between text-sm text-muted">
       <div className="font-medium text-ink/70">
-        Showing <span className="font-semibold text-ink">{total}</span> results · Page{" "}
+        Showing <span className="font-semibold text-ink">{from}–{to}</span> of{" "}
+        <span className="font-semibold text-ink">{total}</span> records · Page{" "}
         <span className="font-semibold text-ink">{page}</span> of{" "}
         <span className="font-semibold text-ink">{pages}</span>
       </div>
@@ -669,6 +672,56 @@ export function Pagination({
           Next
         </Button>
       </div>
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   14. DATE RANGE FILTER
+   ══════════════════════════════════════════════════════════════════════ */
+
+export function DateRangeFilter({
+  startDate,
+  endDate,
+  onStartDateChange,
+  onEndDateChange,
+  onClear,
+}: {
+  startDate: string;
+  endDate: string;
+  onStartDateChange: (value: string) => void;
+  onEndDateChange: (value: string) => void;
+  onClear?: () => void;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-2 text-xs">
+      <div className="flex items-center gap-1.5">
+        <label className="font-mono text-muted uppercase tracking-wider text-[11px]">From</label>
+        <input
+          type="date"
+          value={startDate}
+          onChange={(e) => onStartDateChange(e.target.value)}
+          className="rounded-lg border border-black/10 dark:border-white/10 bg-surface px-2.5 py-1.5 text-xs text-ink focus:border-moss focus:outline-none focus:ring-1 focus:ring-moss"
+        />
+      </div>
+      <div className="flex items-center gap-1.5">
+        <label className="font-mono text-muted uppercase tracking-wider text-[11px]">To</label>
+        <input
+          type="date"
+          value={endDate}
+          onChange={(e) => onEndDateChange(e.target.value)}
+          className="rounded-lg border border-black/10 dark:border-white/10 bg-surface px-2.5 py-1.5 text-xs text-ink focus:border-moss focus:outline-none focus:ring-1 focus:ring-moss"
+        />
+      </div>
+      {(startDate || endDate) && onClear && (
+        <button
+          type="button"
+          onClick={onClear}
+          className="text-xs text-muted hover:text-ink underline underline-offset-2 ml-1"
+        >
+          Reset Dates
+        </button>
+      )}
     </div>
   );
 }
