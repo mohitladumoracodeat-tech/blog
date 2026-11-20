@@ -1,0 +1,22 @@
+{
+  "name": "blog-management-system",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "backend",
+    "frontend"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace backend",
+    "dev:frontend": "npm run dev --workspace frontend",
+    "build": "npm run build --workspace backend",
+    "build:frontend": "npm run build --workspace frontend",
+    "start": "npm run start --workspace backend",
+    "db:setup": "npm run db:setup --workspace backend"
+  },
+  "allowScripts": {
+    "argon2@0.44.0": true,
+    "esbuild@0.28.2": true,
+    "esbuild@0.25.12": true
+  }
+}

@@ -1,0 +1,456 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ══════════════════════════════════════════════════════════════════════
+   MODERN EDITORIAL DESIGN SYSTEM TOKENS (LIGHT & DARK THEMES)
+   ══════════════════════════════════════════════════════════════════════ */
+
+:root {
+  /* LIGHT THEME (Clean, Elegant, Warm Editorial) */
+  --bg-app: #F8F7F3;
+  --bg-surface: #FFFFFF;
+  --bg-surface-elevated: #F0EFEA;
+  --bg-surface-muted: #F3F2EC;
+
+  --color-primary: #263C35;
+  --color-primary-hover: #1B2B26;
+  --color-primary-contrast: #FFFFFF;
+
+  --color-accent: #B5C5B5;
+  --color-accent-subtle: #E2ECE2;
+  --color-accent-hover: #A0B2A0;
+
+  --color-text: #242824;
+  --color-text-muted: #5E6660;
+  --color-text-subtle: #828E85;
+
+  --color-border: rgba(36, 40, 36, 0.12);
+  --color-border-subtle: rgba(36, 40, 36, 0.06);
+  --color-border-hover: rgba(36, 40, 36, 0.24);
+
+  --shadow-sm: 0 1px 2px 0 rgba(36, 40, 36, 0.05);
+  --shadow-md: 0 4px 16px -2px rgba(36, 40, 36, 0.08);
+  --shadow-soft: 0 18px 60px rgba(38, 60, 53, 0.07);
+  --shadow-card: 0 2px 12px -2px rgba(38, 60, 53, 0.06);
+
+  /* RGB channels for Tailwind opacity modifiers (e.g. bg-paper/95, text-ink/80, bg-moss/20) */
+  --bg-app-rgb: 248 247 243;
+  --bg-surface-rgb: 255 255 255;
+  --color-primary-rgb: 38 60 53;
+  --color-accent-rgb: 181 197 181;
+  --color-text-rgb: 36 40 36;
+  --color-muted-rgb: 94 102 96;
+
+  font-family: "Inter", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  color: var(--color-text);
+  background-color: var(--bg-app);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.dark, [data-theme="dark"] {
+  /* DARK THEME (Sophisticated, Deep Charcoal Editorial) */
+  --bg-app: #171B19;
+  --bg-surface: #222925;
+  --bg-surface-elevated: #2C3530;
+  --bg-surface-muted: #1E2522;
+
+  --color-primary: #A8C1AE;
+  --color-primary-hover: #BFD5C4;
+  --color-primary-contrast: #171B19;
+
+  --color-accent: #758F7D;
+  --color-accent-subtle: #29362E;
+  --color-accent-hover: #8AA492;
+
+  --color-text: #F1F0E9;
+  --color-text-muted: #9DA9A0;
+  --color-text-subtle: #79877D;
+
+  --color-border: rgba(241, 240, 233, 0.12);
+  --color-border-subtle: rgba(241, 240, 233, 0.06);
+  --color-border-hover: rgba(241, 240, 233, 0.24);
+
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 16px -2px rgba(0, 0, 0, 0.4);
+  --shadow-soft: 0 18px 60px rgba(0, 0, 0, 0.5);
+  --shadow-card: 0 2px 12px -2px rgba(0, 0, 0, 0.35);
+
+  --bg-app-rgb: 23 27 25;
+  --bg-surface-rgb: 34 41 37;
+  --color-primary-rgb: 168 193 174;
+  --color-accent-rgb: 117 143 125;
+  --color-text-rgb: 241 240 233;
+  --color-muted-rgb: 157 169 160;
+
+  color: var(--color-text);
+  background-color: var(--bg-app);
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   GLOBAL BASE STYLES
+   ══════════════════════════════════════════════════════════════════════ */
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  overflow-x: hidden;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  background-color: var(--bg-app);
+  color: var(--color-text);
+  overflow-x: hidden;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+button, input, textarea, select {
+  font: inherit;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button {
+  cursor: pointer;
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   LAYOUT & CONTAINER HELPERS
+   ══════════════════════════════════════════════════════════════════════ */
+
+.page-wrap {
+  width: min(100% - 2rem, 1240px);
+  margin-inline: auto;
+}
+
+@media (min-width: 640px) {
+  .page-wrap {
+    width: min(100% - 3.5rem, 1240px);
+  }
+}
+
+@media (min-width: 1024px) {
+  .page-wrap {
+    width: min(100% - 4rem, 1240px);
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   EDITORIAL TYPOGRAPHY CLASSES
+   ══════════════════════════════════════════════════════════════════════ */
+
+.font-editorial,
+.font-display {
+  font-family: "Playfair Display", Georgia, Cambria, "Times New Roman", Times, serif;
+  font-feature-settings: "kern" 1, "liga" 1;
+}
+
+.font-sans {
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+/* Editorial blog reading typography */
+.editorial-article,
+.reading-content,
+.editor-content {
+  font-family: "Playfair Display", Georgia, Cambria, "Times New Roman", serif;
+  font-size: 1.125rem;
+  line-height: 1.85;
+  color: var(--color-text);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  text-wrap: pretty;
+}
+
+.editorial-article p,
+.reading-content p {
+  margin-bottom: 1.5rem;
+}
+
+/* Editorial drop-cap for article opening */
+.editorial-dropcap > p:first-of-type::first-letter,
+.drop-cap::first-letter {
+  float: left;
+  font-family: "Playfair Display", Georgia, serif;
+  font-size: 3.75rem;
+  line-height: 0.85;
+  padding-top: 4px;
+  padding-right: 10px;
+  padding-bottom: 2px;
+  font-weight: 700;
+  color: var(--color-primary);
+}
+
+/* Magazine pull-quote */
+.editorial-pullquote {
+  position: relative;
+  font-family: "Playfair Display", Georgia, serif;
+  font-style: italic;
+  font-size: 1.35rem;
+  line-height: 1.6;
+  padding: 1.5rem 1.75rem;
+  margin: 2rem 0;
+  border-left: 3px solid var(--color-primary);
+  background-color: var(--bg-surface-elevated);
+  border-radius: 0 16px 16px 0;
+  color: var(--color-text);
+}
+
+@media (min-width: 640px) {
+  .editorial-pullquote {
+    font-size: 1.5rem;
+    padding: 2rem 2.25rem;
+  }
+}
+
+/* Editorial hairline dividers with center ornament */
+.editorial-hr {
+  position: relative;
+  border: 0;
+  height: 1px;
+  background-color: var(--color-border);
+  margin: 2.5rem 0;
+}
+
+.editorial-hr::after {
+  content: "§";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  background-color: var(--bg-app);
+  padding: 0 0.75rem;
+  font-family: "Playfair Display", Georgia, serif;
+  font-style: italic;
+  font-size: 0.875rem;
+  color: var(--color-text-subtle);
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   FORM CONTROLS (THEME-AWARE .field)
+   ══════════════════════════════════════════════════════════════════════ */
+
+.field {
+  width: 100%;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  background-color: var(--bg-surface);
+  padding: 0.8rem 1rem;
+  color: var(--color-text);
+  outline: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+}
+
+.field:hover {
+  border-color: var(--color-border-hover);
+}
+
+.field:focus {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgb(var(--color-primary-rgb) / 0.16);
+}
+
+.field::placeholder {
+  color: var(--color-text-muted);
+  opacity: 0.8;
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   SCROLLBAR HELPERS
+   ══════════════════════════════════════════════════════════════════════ */
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   SWEETALERT2 EDITORIAL DESIGN SYSTEM STYLES (LIGHT & DARK THEMES)
+   ══════════════════════════════════════════════════════════════════════ */
+
+.swal2-container {
+  z-index: 9999 !important;
+  backdrop-filter: blur(6px) !important;
+  background-color: rgba(23, 27, 25, 0.45) !important;
+}
+
+.dark .swal2-container,
+[data-theme="dark"] .swal2-container {
+  background-color: rgba(10, 14, 12, 0.65) !important;
+}
+
+.fieldnotes-swal-popup {
+  font-family: "Inter", ui-sans-serif, system-ui, sans-serif !important;
+  border-radius: 28px !important;
+  border: 1px solid var(--color-border) !important;
+  box-shadow: 0 20px 60px -15px rgba(0, 0, 0, 0.3) !important;
+  padding: 2.25rem 2rem !important;
+}
+
+.fieldnotes-swal-title {
+  font-family: "Playfair Display", Georgia, Cambria, serif !important;
+  font-size: 1.65rem !important;
+  font-weight: 700 !important;
+  letter-spacing: -0.02em !important;
+  padding: 0.5rem 0 0 0 !important;
+}
+
+.fieldnotes-swal-html {
+  font-family: "Inter", ui-sans-serif, system-ui, sans-serif !important;
+  font-size: 0.9375rem !important;
+  line-height: 1.6 !important;
+  margin-top: 0.75rem !important;
+}
+
+.fieldnotes-swal-actions {
+  display: flex !important;
+  gap: 0.75rem !important;
+  margin-top: 1.75rem !important;
+}
+
+.fieldnotes-swal-btn {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  border-radius: 9999px !important;
+  padding: 0.625rem 1.6rem !important;
+  font-size: 0.75rem !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.08em !important;
+  text-transform: uppercase !important;
+  cursor: pointer !important;
+  transition: all 0.2s ease !important;
+}
+
+.fieldnotes-swal-btn-primary {
+  background-color: var(--color-primary) !important;
+  color: var(--color-primary-contrast) !important;
+  border: 1px solid transparent !important;
+  box-shadow: 0 2px 8px -1px rgba(38, 60, 53, 0.3) !important;
+}
+
+.fieldnotes-swal-btn-primary:hover {
+  background-color: var(--color-primary-hover) !important;
+  transform: translateY(-1px) !important;
+}
+
+.fieldnotes-swal-btn-danger {
+  background-color: #DC2626 !important;
+  color: #FFFFFF !important;
+  border: 1px solid transparent !important;
+  box-shadow: 0 2px 8px -1px rgba(220, 38, 38, 0.3) !important;
+}
+
+.fieldnotes-swal-btn-danger:hover {
+  background-color: #B91C1C !important;
+  transform: translateY(-1px) !important;
+}
+
+.fieldnotes-swal-btn-cancel,
+.fieldnotes-swal-btn-deny {
+  background-color: transparent !important;
+  border: 1px solid var(--color-border) !important;
+  color: var(--color-text-muted) !important;
+}
+
+.fieldnotes-swal-btn-cancel:hover,
+.fieldnotes-swal-btn-deny:hover {
+  background-color: var(--bg-surface-elevated) !important;
+  color: var(--color-text) !important;
+  border-color: var(--color-border-hover) !important;
+}
+
+.fieldnotes-swal-input {
+  font-family: "Inter", ui-sans-serif, system-ui, sans-serif !important;
+  font-size: 0.875rem !important;
+  background-color: var(--bg-surface) !important;
+  color: var(--color-text) !important;
+  border: 1px solid var(--color-border) !important;
+  border-radius: 14px !important;
+  padding: 0.75rem 1rem !important;
+  box-shadow: none !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+  margin: 1rem 0 !important;
+}
+
+.fieldnotes-swal-input:focus {
+  border-color: var(--color-primary) !important;
+  box-shadow: 0 0 0 3px rgb(var(--color-primary-rgb) / 0.16) !important;
+  outline: none !important;
+}
+
+/* Toast styling */
+.fieldnotes-swal-toast {
+  border-radius: 16px !important;
+  border: 1px solid var(--color-border) !important;
+  box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.2) !important;
+  padding: 0.875rem 1.25rem !important;
+}
+
+.fieldnotes-swal-toast-title {
+  font-family: "Inter", ui-sans-serif, system-ui, sans-serif !important;
+  font-size: 0.875rem !important;
+  font-weight: 600 !important;
+}
+
+/* SweetAlert2 Icon Color Harmonization */
+.swal2-icon.swal2-success {
+  border-color: #10B981 !important;
+  color: #10B981 !important;
+}
+.swal2-icon.swal2-success [class^="swal2-success-line"] {
+  background-color: #10B981 !important;
+}
+.swal2-icon.swal2-success .swal2-success-ring {
+  border-color: rgba(16, 185, 129, 0.3) !important;
+}
+
+.dark .swal2-icon.swal2-success .swal2-success-circular-line-left,
+.dark .swal2-icon.swal2-success .swal2-success-circular-line-right,
+.dark .swal2-icon.swal2-success .swal2-success-fix,
+[data-theme="dark"] .swal2-icon.swal2-success .swal2-success-circular-line-left,
+[data-theme="dark"] .swal2-icon.swal2-success .swal2-success-circular-line-right,
+[data-theme="dark"] .swal2-icon.swal2-success .swal2-success-fix {
+  background-color: #222925 !important;
+}
+
+.swal2-icon.swal2-warning {
+  border-color: #F59E0B !important;
+  color: #F59E0B !important;
+}
+
+.swal2-icon.swal2-error {
+  border-color: #EF4444 !important;
+  color: #EF4444 !important;
+}
+.swal2-icon.swal2-error [class^="swal2-x-mark-line"] {
+  background-color: #EF4444 !important;
+}
+
+.swal2-icon.swal2-info {
+  border-color: var(--color-primary) !important;
+  color: var(--color-primary) !important;
+}
+
+.swal2-timer-progress-bar {
+  background: var(--color-primary) !important;
+}
+
