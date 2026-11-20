@@ -26,6 +26,10 @@ build/
 backend/uploads/*
 !backend/uploads/.gitkeep
 
+# Database backups
+backend/database/backups/*
+!backend/database/backups/.gitkeep
+
 # Ephemeral testing directories & profiles
 chrome_test_profile/
 theme_screenshots/
