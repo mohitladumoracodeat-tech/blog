@@ -19,6 +19,9 @@ build/
 !backend/.env.example
 !frontend/.env.example
 
+# Permanently exclude deleted root .env.example
+/.env.example
+
 # Uploaded user media assets (preserve directory via .gitkeep)
 backend/uploads/*
 !backend/uploads/.gitkeep
