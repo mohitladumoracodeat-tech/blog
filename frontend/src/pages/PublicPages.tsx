@@ -1062,7 +1062,7 @@ export function TaxonomyListPage({ kind }: { kind: "categories" | "tags" }) {
                     <Sparkles size={22} />
                   </span>
                   <span className="rounded-full bg-paper px-3 py-1 text-xs font-bold text-moss dark:text-primary">
-                    {item.postCount ?? 0} {item.postCount === 1 ? "story" : "stories"}
+                    {item.postCount ?? 0} {Number(item.postCount) === 1 ? "story" : "stories"}
                   </span>
                 </div>
                 <h2 className="mt-6 font-display text-2xl font-bold text-ink transition-colors duration-200 group-hover:text-moss dark:group-hover:text-primary">
@@ -1410,7 +1410,7 @@ export function BlogDetailPage() {
               <Heart size={15} className="text-red-500" /> {likeCount} likes
             </span>
             <span className="inline-flex items-center gap-1.5 text-muted">
-              <MessageSquareText size={15} /> {data.comments.length} comments
+              <MessageSquareText size={15} /> {data.comments.length} {data.comments.length === 1 ? "comment" : "comments"}
             </span>
           </div>
         </div>
@@ -1594,7 +1594,7 @@ export function BlogDetailPage() {
               <span>Letters &amp; Discourse</span>
             </div>
             <h2 className="mt-1 font-display text-3xl font-bold text-ink">
-              Discussion ({data.comments.length})
+              {`Discussion (${data.comments.length})`}
             </h2>
             <p className="mt-1 text-xs text-muted">Submissions are reviewed by our editors before appearing publicly.</p>
           </div>

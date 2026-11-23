@@ -559,7 +559,7 @@ export function AdminPostsPage() {
           >
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-muted" size={18} />
             <input
-              className="field pl-11 h-12 text-sm shadow-sm"
+              className="field !pl-11 h-12 text-sm shadow-sm"
               placeholder="Search publication catalog by title, slug, or author..."
               value={input}
               onChange={(event) => setInput(event.target.value)}
@@ -979,7 +979,7 @@ export function AdminTaxonomyPage({ kind }: { kind: "categories" | "tags" }) {
           >
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-muted" size={17} />
             <input
-              className="field pl-11 h-12 text-sm shadow-sm"
+              className="field !pl-11 h-12 text-sm shadow-sm"
               placeholder={`Search ${kind} by name or slug...`}
               value={input}
               onChange={(event) => setInput(event.target.value)}
@@ -1010,7 +1010,7 @@ export function AdminTaxonomyPage({ kind }: { kind: "categories" | "tags" }) {
                           <span className="font-mono text-[11px] text-muted/80">/{item.slug}</span>
                           {item.postCount !== undefined && (
                             <span className="rounded-full bg-paper dark:bg-surface px-2 py-0.5 text-[10px] font-semibold text-muted border border-black/[.06] dark:border-white/[.06]">
-                              {item.postCount} stories
+                              {item.postCount} {Number(item.postCount) === 1 ? "story" : "stories"}
                             </span>
                           )}
                         </div>
@@ -1294,8 +1294,8 @@ export function AdminUsersPage() {
   const [input, setInput] = useState("");
   const [roleFilter, setRoleFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
+  const [startDate] = useState("");
+  const [endDate] = useState("");
 
   const url = useMemo(() => {
     const q = new URLSearchParams();
@@ -1377,7 +1377,7 @@ export function AdminUsersPage() {
         >
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-muted" size={17} />
           <input
-            className="field pl-11 h-12 text-sm shadow-sm"
+            className="field !pl-11 h-12 text-sm shadow-sm"
             placeholder="Search username or email address..."
             value={input}
             onChange={(event) => setInput(event.target.value)}

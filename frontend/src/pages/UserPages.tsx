@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import {
   AlertCircle,
@@ -520,7 +520,7 @@ export function PostListPage() {
               placeholder="Search stories by title, category, or excerpt..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="field !py-2.5 !pl-10 text-xs w-full"
+              className="field !py-2.5 !pl-11 text-xs w-full"
             />
             {searchTerm && (
               <button
@@ -847,6 +847,8 @@ export function PostEditorPage({ admin = false }: { admin?: boolean }) {
   const [featuredImageId, setFeaturedImageId] = useState<string | null>(null);
   const [featuredImagePath, setFeaturedImagePath] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [uploadingGallery, setUploadingGallery] = useState(false);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
   const [galleryImages, setGalleryImages] = useState<Array<{ id: string; path: string }>>([]);
 
   // Form fields
@@ -949,21 +951,112 @@ export function PostEditorPage({ admin = false }: { admin?: boolean }) {
     }
   }
 
-  async function addToGallery(file?: File) {
-    if (!file) return;
-    setUploading(true);
+  const ALLOWED_MIME_TYPES = useMemo(
+    () =>
+      new Set([
+        "image/jpeg",
+        "image/png",
+        "image/webp",
+        "image/gif",
+        "image/avif",
+      ]),
+    [],
+  );
+  const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB per image
+  const MAX_GALLERY_IMAGES = 20;
+
+  async function addMultipleToGallery(files?: FileList | File[] | null) {
+    if (!files || files.length === 0) return;
+    const fileList = Array.from(files);
+
+    const remainingSlots = MAX_GALLERY_IMAGES - galleryImages.length;
+    if (remainingSlots <= 0) {
+      await showWarning(
+        "Upload Limit Reached",
+        `You have already reached the maximum limit of ${MAX_GALLERY_IMAGES} additional story images.`,
+      );
+      if (galleryInputRef.current) galleryInputRef.current.value = "";
+      return;
+    }
+
+    const filesToProcess = fileList.slice(0, remainingSlots);
+    if (fileList.length > remainingSlots) {
+      await showWarning(
+        "Partial Selection",
+        `Only ${remainingSlots} more image${remainingSlots > 1 ? "s" : ""} can be added. The remaining ${fileList.length - remainingSlots} file${fileList.length - remainingSlots > 1 ? "s were" : " was"} ignored.`,
+      );
+    }
+
+    const validFiles: File[] = [];
+    const invalidFiles: string[] = [];
+
+    for (const file of filesToProcess) {
+      const isAllowedType = ALLOWED_MIME_TYPES.has(file.type);
+      const isAllowedSize = file.size <= MAX_FILE_SIZE;
+
+      if (!isAllowedType) {
+        invalidFiles.push(`${file.name} (unsupported format)`);
+      } else if (!isAllowedSize) {
+        invalidFiles.push(`${file.name} (exceeds 5 MB limit)`);
+      } else {
+        validFiles.push(file);
+      }
+    }
+
+    if (invalidFiles.length > 0) {
+      await showWarning(
+        "Invalid Files Skipped",
+        `The following file${invalidFiles.length > 1 ? "s were" : " was"} skipped:\n• ${invalidFiles.join("\n• ")}`,
+      );
+    }
+
+    if (validFiles.length === 0) {
+      if (galleryInputRef.current) galleryInputRef.current.value = "";
+      return;
+    }
+
+    setUploadingGallery(true);
     setError(null);
+
+    const uploadedNewImages: Array<{ id: string; path: string }> = [];
+    const failedUploads: string[] = [];
+
     try {
-      const form = new FormData();
-      form.append("image", file);
-      const result = await api.post<{ data: { id: string; path: string } }>("/uploads", form, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
-      setGalleryImages((prev) => [...prev, { id: result.data.data.id, path: result.data.data.path }]);
+      for (const file of validFiles) {
+        try {
+          const form = new FormData();
+          form.append("image", file);
+          const result = await api.post<{ data: { id: string; path: string } }>("/uploads", form, {
+            headers: { "Content-Type": "multipart/form-data" },
+          });
+          uploadedNewImages.push({
+            id: result.data.data.id,
+            path: result.data.data.path,
+          });
+        } catch (uploadErr) {
+          failedUploads.push(`${file.name}: ${getErrorMessage(uploadErr)}`);
+        }
+      }
+
+      if (uploadedNewImages.length > 0) {
+        setGalleryImages((prev) => [...prev, ...uploadedNewImages]);
+      }
+
+      if (failedUploads.length > 0) {
+        await showError(
+          "Upload Incomplete",
+          `Some images could not be uploaded:\n• ${failedUploads.join("\n• ")}`,
+        );
+      }
     } catch (requestError) {
-      setError(getErrorMessage(requestError));
+      const msg = getErrorMessage(requestError);
+      setError(msg);
+      await showError("Upload Failed", msg);
     } finally {
-      setUploading(false);
+      setUploadingGallery(false);
+      if (galleryInputRef.current) {
+        galleryInputRef.current.value = "";
+      }
     }
   }
 
@@ -1281,37 +1374,62 @@ export function PostEditorPage({ admin = false }: { admin?: boolean }) {
 
             {/* Additional Story Images */}
             <div className="border-t border-black/[.08] dark:border-white/[.08] pt-4">
-              <p className="text-sm font-semibold text-ink">Additional Story Images</p>
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-semibold text-ink">Additional Story Images</p>
+                {galleryImages.length > 0 && (
+                  <span className="text-xs font-semibold text-moss dark:text-primary">
+                    {galleryImages.length} / 20 images
+                  </span>
+                )}
+              </div>
+              <p className="mt-1 text-xs text-muted">
+                Select one or multiple images at once for the story gallery. Newly selected images are appended to your existing collection.
+              </p>
               {galleryImages.length > 0 && (
                 <div className="my-3 grid grid-cols-3 gap-2">
                   {galleryImages.map((image, index) => (
-                    <div key={image.id} className="relative overflow-hidden rounded-xl border border-black/[.08] dark:border-white/[.08]">
+                    <div
+                      key={`${image.id}-${index}`}
+                      className="group relative overflow-hidden rounded-xl border border-black/[.08] dark:border-white/[.08] bg-paper dark:bg-surface-elevated shadow-sm"
+                    >
                       <img
                         src={imageUrl(image.path)}
-                        alt=""
-                        className="aspect-square w-full object-cover"
+                        alt={`Story gallery ${index + 1}`}
+                        className="aspect-square w-full object-cover transition duration-200 group-hover:scale-105"
                       />
                       <button
                         type="button"
                         onClick={() => setGalleryImages((prev) => prev.filter((_, i) => i !== index))}
-                        className="absolute right-1 top-1 grid size-5 place-items-center rounded-full bg-black/70 text-white transition hover:bg-red-600"
-                        aria-label="Remove image"
+                        className="absolute right-1 top-1 grid size-6 place-items-center rounded-full bg-black/70 text-white transition hover:bg-red-600 shadow-sm"
+                        title="Remove image"
+                        aria-label={`Remove image ${index + 1}`}
                       >
                         <X size={12} />
                       </button>
+                      <span className="absolute bottom-1 left-1 rounded bg-black/60 px-1.5 py-0.5 text-[9px] font-mono text-white/90">
+                        #{index + 1}
+                      </span>
                     </div>
                   ))}
                 </div>
               )}
               <label className="mt-2 flex cursor-pointer items-center justify-center gap-2 rounded-2xl border border-dashed border-black/20 dark:border-white/20 bg-paper/50 dark:bg-surface-elevated/50 px-4 py-3 text-xs font-semibold text-muted transition hover:border-moss/40 hover:bg-paper hover:text-ink">
                 <Upload size={15} />
-                {uploading ? "Uploading..." : "Add image to gallery"}
+                {uploadingGallery ? "Uploading images..." : "Select additional images (supports multiple)"}
                 <input
+                  ref={galleryInputRef}
                   className="sr-only"
                   type="file"
+                  multiple
                   accept="image/jpeg,image/png,image/webp,image/gif,image/avif"
-                  disabled={uploading}
-                  onChange={(event) => void addToGallery(event.target.files?.[0])}
+                  disabled={uploading || uploadingGallery}
+                  onChange={(event) => {
+                    const files = event.target.files;
+                    if (files && files.length > 0) {
+                      void addMultipleToGallery(files);
+                    }
+                    event.target.value = "";
+                  }}
                 />
               </label>
             </div>
@@ -1323,7 +1441,7 @@ export function PostEditorPage({ admin = false }: { admin?: boolean }) {
               <Button
                 className="w-full shadow-sm"
                 onClick={() => void handleSubmit("submit")}
-                disabled={busy || uploading}
+                disabled={busy || uploading || uploadingGallery}
               >
                 {busy ? "Saving..." : "Save Story Changes"} <ArrowRight size={16} />
               </Button>
@@ -1332,7 +1450,7 @@ export function PostEditorPage({ admin = false }: { admin?: boolean }) {
                 <Button
                   className="w-full shadow-sm"
                   onClick={() => void handleSubmit("submit")}
-                  disabled={busy || uploading}
+                  disabled={busy || uploading || uploadingGallery}
                 >
                   <Send size={15} /> {busy ? "Submitting..." : "Submit for Editorial Approval"}
                 </Button>
@@ -1340,7 +1458,7 @@ export function PostEditorPage({ admin = false }: { admin?: boolean }) {
                   variant="secondary"
                   className="w-full"
                   onClick={() => void handleSubmit("draft")}
-                  disabled={busy || uploading}
+                  disabled={busy || uploading || uploadingGallery}
                 >
                   {busy ? "Saving..." : "Save as Draft"}
                 </Button>

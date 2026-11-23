@@ -11,6 +11,7 @@ import {
   Files,
   FolderKanban,
   LayoutDashboard,
+  LogIn,
   LogOut,
   Mail,
   Menu,
@@ -32,8 +33,6 @@ import { confirmAction, showSuccess } from "../lib/alerts";
 
 const publicLinks = [
   { to: "/blogs", label: "Stories" },
-  { to: "/categories", label: "Categories" },
-  { to: "/tags", label: "Tags" },
   { to: "/about", label: "About" },
   { to: "/contact", label: "Contact" },
 ];
@@ -279,9 +278,11 @@ export function PublicLayout() {
                 <div className="flex items-center gap-3">
                   <Link
                     to="/login"
-                    className="px-4 py-2 text-xs font-bold uppercase tracking-wider text-ink hover:text-moss dark:hover:text-primary transition"
+                    title="Log In"
+                    aria-label="Log In"
+                    className="grid size-10 place-items-center rounded-xl border border-black/10 dark:border-white/10 bg-surface text-ink hover:text-moss dark:hover:text-primary hover:border-moss/40 hover:bg-paper dark:hover:bg-surface-elevated transition shadow-sm"
                   >
-                    Log in
+                    <LogIn size={18} />
                   </Link>
                   <Link
                     to="/register"
@@ -306,8 +307,9 @@ export function PublicLayout() {
               </button>
             </div>
           </div>
+        </header>
 
-          {/* Mobile Navigation Drawer Backdrop */}
+        {/* Mobile Navigation Drawer Backdrop */}
           {menuOpen && (
             <div
               className="fixed inset-0 z-40 bg-ink/40 dark:bg-black/60 backdrop-blur-sm lg:hidden transition-opacity"
@@ -318,7 +320,7 @@ export function PublicLayout() {
 
           {/* Mobile Navigation Slide-Out Drawer */}
           <div
-            className={`fixed inset-y-0 right-0 z-50 flex w-full max-w-xs flex-col justify-between bg-paper text-ink p-6 shadow-2xl transition-all duration-300 ease-in-out lg:hidden ${
+            className={`fixed inset-y-0 right-0 z-50 flex w-full max-w-xs flex-col justify-between bg-surface dark:bg-[#171B19] border-l border-black/[.08] dark:border-white/[.08] text-ink p-6 shadow-2xl backdrop-blur-md transition-all duration-300 ease-in-out lg:hidden ${
               menuOpen ? "translate-x-0 opacity-100 pointer-events-auto" : "translate-x-full opacity-0 pointer-events-none invisible"
             }`}
           >
@@ -435,11 +437,13 @@ export function PublicLayout() {
                 ) : (
                   <div className="space-y-2 pt-2">
                     <Link
-                      className="block w-full rounded-xl border border-black/15 dark:border-white/15 bg-surface px-4 py-2.5 text-center text-xs font-bold uppercase tracking-wider text-ink hover:bg-paper dark:hover:bg-surface-elevated"
+                      className="flex w-full items-center justify-center rounded-xl border border-black/15 dark:border-white/15 bg-surface px-4 py-3 text-ink hover:bg-paper dark:hover:bg-surface-elevated transition shadow-sm"
                       to="/login"
                       onClick={() => setMenuOpen(false)}
+                      title="Log In"
+                      aria-label="Log In"
                     >
-                      Log in
+                      <LogIn size={20} />
                     </Link>
                     <Link
                       className="block w-full rounded-xl bg-moss dark:bg-primary px-4 py-2.5 text-center text-xs font-bold uppercase tracking-wider text-white dark:text-[#171B19] shadow-sm hover:bg-ink dark:hover:bg-primary/90"
@@ -467,7 +471,6 @@ export function PublicLayout() {
               </div>
             )}
           </div>
-        </header>
 
         {/* Main Content Area */}
         <main className="page-wrap min-h-[65vh] py-8 sm:py-12 lg:py-14">
@@ -1413,7 +1416,7 @@ export function UserLayout() {
 
         {/* Slide-out Menu Panel */}
         <div
-          className={`relative flex h-full w-80 max-w-[85vw] flex-col justify-between border-r border-black/[.08] dark:border-white/[.08] bg-surface p-6 shadow-2xl transition-transform duration-300 ${
+          className={`relative flex h-full w-80 max-w-[85vw] flex-col justify-between border-r border-black/[.08] dark:border-white/[.08] bg-surface dark:bg-[#171B19] backdrop-blur-md p-6 shadow-2xl transition-transform duration-300 ${
             mobileDrawerOpen ? "translate-x-0" : "-translate-x-full"
           }`}
         >
