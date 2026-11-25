@@ -21,6 +21,7 @@ import { env } from "../config/env";
 import { AppError } from "../errors/app-error";
 import { authenticate, optionalAuthenticate } from "../middleware/authenticate";
 import { verifyOrigin } from "../middleware/verify-origin";
+import { sendPasswordResetEmail } from "../services/email.service";
 
 export const authRouter = Router();
 
@@ -94,6 +95,14 @@ authRouter.post("/forgot-password", authRateLimit, async (request, response) => 
   }
 
   const result = await requestPasswordReset(parsed.data.email);
+  if (result.resetToken) {
+    try {
+      await sendPasswordResetEmail(parsed.data.email, result.resetToken);
+    } catch (emailErr) {
+      // Log error safely without revealing to the client
+      console.error("[Auth] Failed to dispatch password reset email:", emailErr);
+    }
+  }
   // Always acknowledge the request to avoid revealing which emails are
   // registered. In development only, echo the issued token so the reset can be
   // completed without email infrastructure; production would deliver it by email.

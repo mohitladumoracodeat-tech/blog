@@ -7,11 +7,15 @@
     "dev": "tsx watch src/server.ts",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/src/server.js",
+    "test": "node tests/run_all_tests.js",
+    "cleanup:sessions": "node dist/scripts/cleanup-sessions.js",
+    "migrate": "node dist/scripts/migrate.js",
     "db:setup": "tsx scripts/setup-database.ts",
     "db:seed": "tsx scripts/seed-database.ts"
   },
   "dependencies": {
     "@types/bcryptjs": "^2.4.6",
+    "@types/nodemailer": "^8.0.2",
     "argon2": "^0.44.0",
     "bcryptjs": "^3.0.3",
     "cookie-parser": "^1.4.7",
@@ -24,6 +28,7 @@
     "jsonwebtoken": "^9.0.2",
     "multer": "^2.0.2",
     "mysql2": "^3.14.1",
+    "nodemailer": "^10.6.1",
     "pino": "^9.7.0",
     "pino-http": "^10.4.0",
     "zod": "^4.6.7"

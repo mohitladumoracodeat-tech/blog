@@ -394,3 +394,30 @@ export async function resetPassword(input: {
     connection.release();
   }
 }
+
+/**
+ * Safely purges expired sessions and old revoked sessions.
+ * Never touches active, unexpired user sessions.
+ */
+export async function cleanupExpiredSessions(): Promise<{
+  expiredDeleted: number;
+  oldRevokedDeleted: number;
+}> {
+  // Purge naturally expired sessions
+  const [expiredResult] = await pool.execute<ResultSetHeader>(
+    `DELETE FROM auth_sessions WHERE expires_at < UTC_TIMESTAMP(3)`
+  );
+
+  // Purge revoked sessions older than 30 days
+  const [revokedResult] = await pool.execute<ResultSetHeader>(
+    `DELETE FROM auth_sessions 
+     WHERE revoked_at IS NOT NULL 
+       AND revoked_at < DATE_SUB(UTC_TIMESTAMP(3), INTERVAL 30 DAY)`
+  );
+
+  return {
+    expiredDeleted: expiredResult.affectedRows,
+    oldRevokedDeleted: revokedResult.affectedRows,
+  };
+}
+
