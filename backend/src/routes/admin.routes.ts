@@ -90,6 +90,8 @@ const adminPostSchema = z.object({
   imageIds: z.array(z.string().uuid()).max(20).default([]),
   rejectionReason: z.string().trim().max(1000).nullable().optional(),
   status: z.enum(["DRAFT", "PENDING", "APPROVED", "REJECTED"]).default("DRAFT"),
+  isFeatured: z.boolean().default(false),
+  featuredOrder: z.number().int().min(0).max(999).default(0),
   seoTitle: z.string().trim().max(200).nullable().optional(),
   seoDescription: z.string().trim().max(320).nullable().optional(),
   seoKeywords: z.string().trim().max(500).nullable().optional(),
@@ -97,9 +99,16 @@ const adminPostSchema = z.object({
 
 const adminPostUpdateSchema = adminPostSchema.partial().extend({
   status: z.enum(["DRAFT", "PENDING", "APPROVED", "REJECTED"]).optional(),
+  isFeatured: z.boolean().optional(),
+  featuredOrder: z.number().int().min(0).max(999).optional(),
   tagIds: z.array(z.string().uuid()).max(30).optional(),
   imageIds: z.array(z.string().uuid()).max(20).optional(),
 }).strict().refine((value) => Object.keys(value).length > 0);
+
+const adminPostFeaturedToggleSchema = z.object({
+  isFeatured: z.boolean(),
+  featuredOrder: z.number().int().min(0).max(999).optional(),
+}).strict();
 
 const adminSeoInputSchema = z.object({
   title: z.string().trim().max(200).nullable().optional(),
@@ -456,6 +465,7 @@ adminRouter.get("/posts", async (request, response) => {
   );
   const [rows] = await pool.execute<RowDataPacket[]>(
     `SELECT p.id, p.title, p.slug, p.excerpt, p.status, p.published_at AS publishedAt,
+            p.is_featured AS isFeatured, p.featured_order AS featuredOrder,
             p.submitted_at AS submittedAt, p.reviewed_at AS reviewedAt, p.rejection_reason AS rejectionReason,
             p.created_at AS createdAt, p.updated_at AS updatedAt,
             u.id AS authorId, u.username AS authorUsername,
@@ -486,6 +496,7 @@ adminRouter.get("/posts/:id", async (request, response) => {
   const id = parseOrThrow(uuidSchema, request.params.id);
   const [rows] = await pool.execute<RowDataPacket[]>(
     `SELECT p.id, p.title, p.slug, p.excerpt, p.content, p.status, p.published_at AS publishedAt,
+            p.is_featured AS isFeatured, p.featured_order AS featuredOrder,
             p.submitted_at AS submittedAt, p.reviewed_at AS reviewedAt, p.rejection_reason AS rejectionReason,
             p.created_at AS createdAt, p.updated_at AS updatedAt,
             u.id AS authorId, u.username AS authorUsername, u.email AS authorEmail,
@@ -620,11 +631,12 @@ adminRouter.post("/posts", async (request, response) => {
     await connection.execute(
       `INSERT INTO posts
         (id, author_id, category_id, featured_image_id, title, slug, excerpt, content,
-        status, submitted_at, reviewed_at, published_at, rejection_reason)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        status, is_featured, featured_order, submitted_at, reviewed_at, published_at, rejection_reason)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         id, authorId, input.categoryId, input.featuredImageId ?? null,
         input.title, slug, input.excerpt ?? null, input.content, input.status,
+        input.isFeatured ? 1 : 0, input.featuredOrder ?? 0,
         input.status === "PENDING" || input.status === "APPROVED" ? new Date() : null,
         input.status === "APPROVED" || input.status === "REJECTED" ? new Date() : null,
         publishedAt,
@@ -672,8 +684,10 @@ const updatePostHandler: RequestHandler = async (request, response) => {
   const [rows] = await pool.execute<Array<RowDataPacket & {
     author_id: string; category_id: string; featured_image_id: string | null;
     title: string; slug: string; excerpt: string | null; content: string; status: string;
+    is_featured: number; featured_order: number;
   }>>(
-    `SELECT author_id, category_id, featured_image_id, title, slug, excerpt, content, status
+    `SELECT author_id, category_id, featured_image_id, title, slug, excerpt, content, status,
+            is_featured, featured_order
      FROM posts WHERE id = ? AND deleted_at IS NULL`,
     [id],
   );
@@ -685,6 +699,8 @@ const updatePostHandler: RequestHandler = async (request, response) => {
     ? current.featured_image_id
     : input.featuredImageId;
   const status = input.status ?? current.status;
+  const isFeatured = input.isFeatured === undefined ? current.is_featured : (input.isFeatured ? 1 : 0);
+  const featuredOrder = input.featuredOrder === undefined ? current.featured_order : input.featuredOrder;
   const [authors] = await pool.execute<Array<RowDataPacket & { id: string }>>(
     "SELECT id FROM users WHERE id = ? AND is_active = TRUE AND deleted_at IS NULL",
     [authorId],
@@ -730,6 +746,7 @@ const updatePostHandler: RequestHandler = async (request, response) => {
       `UPDATE posts
        SET author_id = ?, category_id = ?, featured_image_id = ?,
            title = ?, slug = ?, excerpt = ?, content = ?, status = ?,
+           is_featured = ?, featured_order = ?,
            published_at = COALESCE(?, published_at),
            rejection_reason = ?
        WHERE id = ?`,
@@ -739,6 +756,8 @@ const updatePostHandler: RequestHandler = async (request, response) => {
         input.excerpt === undefined ? current.excerpt : input.excerpt,
         input.content ?? current.content,
         status,
+        isFeatured,
+        featuredOrder,
         publishedAt,
         status === "REJECTED"
           ? input.rejectionReason ?? null
@@ -823,6 +842,29 @@ const updatePostHandler: RequestHandler = async (request, response) => {
 
 adminRouter.put("/posts/:id", updatePostHandler);
 adminRouter.patch("/posts/:id", updatePostHandler);
+
+adminRouter.patch("/posts/:id/featured", async (request, response) => {
+  const id = parseOrThrow(uuidSchema, request.params.id);
+  const input = parseOrThrow(adminPostFeaturedToggleSchema, request.body);
+  const [rows] = await pool.execute<RowDataPacket[]>(
+    "SELECT id, title, status FROM posts WHERE id = ? AND deleted_at IS NULL",
+    [id],
+  );
+  if (!rows[0]) throw new AppError(404, "Post not found.", "POST_NOT_FOUND");
+
+  await pool.execute(
+    "UPDATE posts SET is_featured = ?, featured_order = COALESCE(?, featured_order) WHERE id = ?",
+    [input.isFeatured ? 1 : 0, input.featuredOrder ?? 0, id],
+  );
+
+  response.status(200).json({
+    data: {
+      id,
+      isFeatured: input.isFeatured,
+      featuredOrder: input.featuredOrder ?? 0,
+    },
+  });
+});
 
 adminRouter.delete("/posts/:id", async (request, response) => {
   const id = parseOrThrow(uuidSchema, request.params.id);
@@ -1556,6 +1598,486 @@ adminRouter.put("/settings/:key", async (request, response) => {
     [key, input.value],
   );
   response.status(200).json({ data: { key, value: input.value } });
+});
+
+/* =========================================================================
+   11. NEWSLETTER SUBSCRIBERS MANAGEMENT (Phase 2C)
+   ========================================================================= */
+
+adminRouter.get("/newsletter/stats", async (_request, response) => {
+  const [counts] = await pool.query<RowDataPacket[]>(
+    `SELECT 
+       COUNT(*) AS total,
+       SUM(CASE WHEN status = 'SUBSCRIBED' THEN 1 ELSE 0 END) AS active,
+       SUM(CASE WHEN status = 'PENDING' THEN 1 ELSE 0 END) AS pending,
+       SUM(CASE WHEN status = 'UNSUBSCRIBED' THEN 1 ELSE 0 END) AS unsubscribed
+     FROM newsletter_subscribers`
+  );
+  const stats = counts[0] || { total: 0, active: 0, pending: 0, unsubscribed: 0 };
+  response.status(200).json({
+    data: {
+      total: Number(stats.total || 0),
+      active: Number(stats.active || 0),
+      pending: Number(stats.pending || 0),
+      unsubscribed: Number(stats.unsubscribed || 0),
+    },
+  });
+});
+
+adminRouter.get("/newsletter/subscribers", async (request, response) => {
+  const query = parseOrThrow(
+    paginationSchema.extend({
+      search: z.string().trim().max(100).default(""),
+      status: z.enum(["ALL", "PENDING", "SUBSCRIBED", "UNSUBSCRIBED"]).default("ALL"),
+    }),
+    request.query,
+  );
+
+  const conditions: string[] = [];
+  const params: any[] = [];
+
+  if (query.status !== "ALL") {
+    conditions.push("status = ?");
+    params.push(query.status);
+  }
+
+  if (query.search) {
+    conditions.push("email LIKE ?");
+    params.push(`%${escapeLike(query.search)}%`);
+  }
+
+  const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+
+  const [countRows] = await pool.query<CountRow[]>(
+    `SELECT COUNT(*) AS total FROM newsletter_subscribers ${whereClause}`,
+    params,
+  );
+  const total = countRows[0]?.total ?? 0;
+
+  // CRITICAL SECURITY RULE: NEVER select verification_token_hash or unsubscribe_token_hash!
+  const [rows] = await pool.query<RowDataPacket[]>(
+    `SELECT id, email, status, subscribed_at AS subscribedAt, 
+            unsubscribed_at AS unsubscribedAt, created_at AS createdAt, updated_at AS updatedAt
+     FROM newsletter_subscribers
+     ${whereClause}
+     ORDER BY created_at DESC
+     LIMIT ? OFFSET ?`,
+    [...params, query.limit, paginationOffset(query.page, query.limit)],
+  );
+
+  response.status(200).json({
+    data: rows,
+    pagination: formatPagination(query.page, query.limit, total),
+  });
+});
+
+adminRouter.delete("/newsletter/subscribers/:id", async (request, response) => {
+  const id = parseOrThrow(uuidSchema, request.params.id);
+  const [result] = await pool.execute<ResultSetHeader>(
+    "DELETE FROM newsletter_subscribers WHERE id = ?",
+    [id],
+  );
+  if (result.affectedRows === 0) {
+    throw new AppError(404, "Subscriber not found.", "SUBSCRIBER_NOT_FOUND");
+  }
+  response.status(204).end();
+});
+
+adminRouter.get("/newsletter/export", async (request, response) => {
+  const query = parseOrThrow(
+    z.object({
+      status: z.enum(["ALL", "PENDING", "SUBSCRIBED", "UNSUBSCRIBED"]).default("SUBSCRIBED"),
+    }),
+    request.query,
+  );
+
+  const conditions: string[] = [];
+  const params: any[] = [];
+  if (query.status !== "ALL") {
+    conditions.push("status = ?");
+    params.push(query.status);
+  }
+  const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+
+  const [rows] = await pool.query<RowDataPacket[]>(
+    `SELECT id, email, status, subscribed_at AS subscribedAt, created_at AS createdAt
+     FROM newsletter_subscribers
+     ${whereClause}
+     ORDER BY created_at DESC`,
+    params,
+  );
+
+  function escapeCsv(field: any): string {
+    if (field === null || field === undefined) return '""';
+    const str = String(field).replace(/"/g, '""');
+    return `"${str}"`;
+  }
+
+  let csv = "ID,Email,Status,Subscribed At,Created At\r\n";
+  for (const r of rows) {
+    csv += `${escapeCsv(r.id)},${escapeCsv(r.email)},${escapeCsv(r.status)},${escapeCsv(r.subscribedAt)},${escapeCsv(r.createdAt)}\r\n`;
+  }
+
+  response.setHeader("Content-Type", "text/csv; charset=utf-8");
+  response.setHeader("Content-Disposition", 'attachment; filename="newsletter_subscribers.csv"');
+  response.status(200).send(csv);
+});
+
+/* =========================================================================
+   14. SEARCH ANALYTICS & ZERO-RESULT INSIGHTS (PHASE 3B)
+   ========================================================================= */
+
+function buildDateRangeCondition(
+  period: string,
+  startDate?: string,
+  endDate?: string,
+  column = "created_at",
+): { condition: string; params: any[] } {
+  if (startDate && endDate) {
+    return {
+      condition: `${column} >= ? AND ${column} <= ?`,
+      params: [`${startDate} 00:00:00`, `${endDate} 23:59:59.999`],
+    };
+  }
+  if (startDate) {
+    return {
+      condition: `${column} >= ?`,
+      params: [`${startDate} 00:00:00`],
+    };
+  }
+  if (endDate) {
+    return {
+      condition: `${column} <= ?`,
+      params: [`${endDate} 23:59:59.999`],
+    };
+  }
+  if (period === "7d") {
+    return {
+      condition: `${column} >= NOW() - INTERVAL 7 DAY`,
+      params: [],
+    };
+  }
+  if (period === "90d") {
+    return {
+      condition: `${column} >= NOW() - INTERVAL 90 DAY`,
+      params: [],
+    };
+  }
+  if (period === "all") {
+    return { condition: "1=1", params: [] };
+  }
+  // Default to 30 days
+  return {
+    condition: `${column} >= NOW() - INTERVAL 30 DAY`,
+    params: [],
+  };
+}
+
+/**
+ * GET /admin/search-analytics/overview
+ * Overview metrics: KPIs, daily search activity trends, top keywords, top zero-result keywords, category breakdown.
+ */
+adminRouter.get("/search-analytics/overview", async (request, response) => {
+  const query = parseOrThrow(
+    dateRangeSchema.extend({
+      period: z.enum(["7d", "30d", "90d", "all"]).default("30d"),
+    }),
+    request.query,
+  );
+
+  const { condition, params } = buildDateRangeCondition(query.period, query.startDate, query.endDate);
+
+  // 1. Core Summary KPIs
+  const [kpiRows] = await pool.query<RowDataPacket[]>(
+    `SELECT
+       COUNT(*) AS totalSearches,
+       COUNT(DISTINCT normalized_query) AS uniqueTerms,
+       SUM(CASE WHEN has_results = 0 THEN 1 ELSE 0 END) AS zeroResultSearches,
+       SUM(CASE WHEN has_results = 1 THEN 1 ELSE 0 END) AS successfulSearches
+     FROM search_analytics
+     WHERE ${condition}`,
+    params,
+  );
+
+  const total = Number(kpiRows[0]?.totalSearches || 0);
+  const unique = Number(kpiRows[0]?.uniqueTerms || 0);
+  const zeroResults = Number(kpiRows[0]?.zeroResultSearches || 0);
+  const successful = Number(kpiRows[0]?.successfulSearches || 0);
+  const zeroResultRate = total > 0 ? Number(((zeroResults / total) * 100).toFixed(1)) : 0;
+
+  // 2. Activity Trends (Daily Aggregation)
+  const [trendRows] = await pool.query<RowDataPacket[]>(
+    `SELECT
+       DATE_FORMAT(created_at, '%Y-%m-%d') AS searchDate,
+       COUNT(*) AS total,
+       SUM(CASE WHEN has_results = 0 THEN 1 ELSE 0 END) AS zeroResults
+     FROM search_analytics
+     WHERE ${condition}
+     GROUP BY DATE_FORMAT(created_at, '%Y-%m-%d')
+     ORDER BY searchDate ASC
+     LIMIT 90`,
+    params,
+  );
+
+  // 3. Top Search Keywords
+  const [topKeywords] = await pool.query<RowDataPacket[]>(
+    `SELECT
+       normalized_query AS normalizedQuery,
+       MAX(search_query) AS term,
+       COUNT(*) AS searchCount,
+       SUM(CASE WHEN has_results = 0 THEN 1 ELSE 0 END) AS zeroResultsCount,
+       MAX(created_at) AS lastSearchedAt
+     FROM search_analytics
+     WHERE ${condition}
+     GROUP BY normalized_query
+     ORDER BY searchCount DESC, lastSearchedAt DESC
+     LIMIT 10`,
+    params,
+  );
+
+  // 4. Top Zero-Result Keywords (Missing Content Opportunities)
+  const zeroCondition = condition === "1=1" ? "has_results = 0" : `${condition} AND has_results = 0`;
+  const [topZeroResultKeywords] = await pool.query<RowDataPacket[]>(
+    `SELECT
+       normalized_query AS normalizedQuery,
+       MAX(search_query) AS term,
+       COUNT(*) AS occurrences,
+       MAX(category_scope) AS lastCategory,
+       MAX(created_at) AS lastSearchedAt
+     FROM search_analytics
+     WHERE ${zeroCondition}
+     GROUP BY normalized_query
+     ORDER BY occurrences DESC, lastSearchedAt DESC
+     LIMIT 10`,
+    params,
+  );
+
+  // 5. Category Scope Distribution
+  const [categoryBreakdown] = await pool.query<RowDataPacket[]>(
+    `SELECT
+       COALESCE(category_scope, 'All Categories') AS category,
+       COUNT(*) AS count
+     FROM search_analytics
+     WHERE ${condition}
+     GROUP BY category_scope
+     ORDER BY count DESC
+     LIMIT 8`,
+    params,
+  );
+
+  response.status(200).json({
+    data: {
+      summary: {
+        totalSearches: total,
+        uniqueTerms: unique,
+        zeroResultSearches: zeroResults,
+        successfulSearches: successful,
+        zeroResultRate,
+      },
+      activityTrend: trendRows.map((r) => ({
+        date: r.searchDate,
+        total: Number(r.total || 0),
+        zeroResults: Number(r.zeroResults || 0),
+      })),
+      topKeywords: topKeywords.map((r) => ({
+        normalizedQuery: r.normalizedQuery,
+        term: r.term,
+        searchCount: Number(r.searchCount || 0),
+        zeroResultsCount: Number(r.zeroResultsCount || 0),
+        lastSearchedAt: r.lastSearchedAt,
+      })),
+      topZeroResultKeywords: topZeroResultKeywords.map((r) => ({
+        normalizedQuery: r.normalizedQuery,
+        term: r.term,
+        occurrences: Number(r.occurrences || 0),
+        lastCategory: r.lastCategory,
+        lastSearchedAt: r.lastSearchedAt,
+      })),
+      categoryBreakdown: categoryBreakdown.map((r) => ({
+        category: r.category,
+        count: Number(r.count || 0),
+      })),
+    },
+  });
+});
+
+/**
+ * GET /admin/search-analytics/zero-results
+ * Paginated deep-dive report of searches returning zero results.
+ */
+adminRouter.get("/search-analytics/zero-results", async (request, response) => {
+  const query = parseOrThrow(
+    paginationSchema.merge(dateRangeSchema).extend({
+      period: z.enum(["7d", "30d", "90d", "all"]).default("30d"),
+      search: z.string().trim().max(100).optional(),
+    }),
+    request.query,
+  );
+
+  const { condition, params } = buildDateRangeCondition(query.period, query.startDate, query.endDate);
+  const conditions = ["has_results = 0", condition];
+  const queryParams = [...params];
+
+  if (query.search) {
+    conditions.push("(normalized_query LIKE ? OR search_query LIKE ?)");
+    const pattern = `%${escapeLike(query.search.toLowerCase())}%`;
+    queryParams.push(pattern, pattern);
+  }
+
+  const whereClause = conditions.filter((c) => c !== "1=1").join(" AND ");
+
+  // Total unique zero-result terms
+  const [countRows] = await pool.query<RowDataPacket[]>(
+    `SELECT COUNT(DISTINCT normalized_query) AS total
+     FROM search_analytics
+     ${whereClause ? `WHERE ${whereClause}` : ""}`,
+    queryParams,
+  );
+  const total = Number(countRows[0]?.total || 0);
+
+  // Paginated grouped zero-result search items
+  const offset = paginationOffset(query.page, query.limit);
+  const [rows] = await pool.query<RowDataPacket[]>(
+    `SELECT
+       normalized_query AS normalizedQuery,
+       MAX(search_query) AS originalQuery,
+       COUNT(*) AS count,
+       MAX(category_scope) AS lastCategory,
+       MAX(created_at) AS lastSearchedAt
+     FROM search_analytics
+     ${whereClause ? `WHERE ${whereClause}` : "" }
+     GROUP BY normalized_query
+     ORDER BY count DESC, lastSearchedAt DESC
+     LIMIT ? OFFSET ?`,
+    [...queryParams, query.limit, offset],
+  );
+
+  response.status(200).json({
+    data: rows.map((r) => ({
+      normalizedQuery: r.normalizedQuery,
+      originalQuery: r.originalQuery,
+      term: r.originalQuery,
+      count: Number(r.count || 0),
+      occurrences: Number(r.count || 0),
+      lastCategory: r.lastCategory,
+      lastSearchedAt: r.lastSearchedAt,
+    })),
+    pagination: formatPagination(query.page, query.limit, total),
+  });
+});
+
+/**
+ * GET /admin/search-analytics/recent
+ * Paginated raw search event log stream for auditing.
+ */
+adminRouter.get("/search-analytics/recent", async (request, response) => {
+  const query = parseOrThrow(
+    paginationSchema.merge(dateRangeSchema).extend({
+      period: z.enum(["7d", "30d", "90d", "all"]).default("30d"),
+      search: z.string().trim().max(100).optional(),
+      hasResults: z.enum(["true", "false", "ALL"]).default("ALL"),
+      category: z.string().trim().max(160).optional(),
+    }),
+    request.query,
+  );
+
+  const { condition, params } = buildDateRangeCondition(query.period, query.startDate, query.endDate);
+  const conditions: string[] = [];
+  const queryParams: any[] = [];
+
+  if (condition !== "1=1") {
+    conditions.push(condition);
+    queryParams.push(...params);
+  }
+
+  if (query.hasResults === "true") {
+    conditions.push("has_results = 1");
+  } else if (query.hasResults === "false") {
+    conditions.push("has_results = 0");
+  }
+
+  if (query.category) {
+    conditions.push("category_scope = ?");
+    queryParams.push(query.category);
+  }
+
+  if (query.search) {
+    conditions.push("(search_query LIKE ? OR normalized_query LIKE ?)");
+    const pattern = `%${escapeLike(query.search.toLowerCase())}%`;
+    queryParams.push(pattern, pattern);
+  }
+
+  const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+
+  const [countRows] = await pool.query<RowDataPacket[]>(
+    `SELECT COUNT(*) AS total FROM search_analytics ${whereClause}`,
+    queryParams,
+  );
+  const total = Number(countRows[0]?.total || 0);
+
+  const offset = paginationOffset(query.page, query.limit);
+  const [rows] = await pool.query<RowDataPacket[]>(
+    `SELECT
+       id,
+       search_query AS searchQuery,
+       normalized_query AS normalizedQuery,
+       category_scope AS categoryScope,
+       results_count AS resultsCount,
+       has_results AS hasResults,
+       user_id AS userId,
+       created_at AS createdAt
+     FROM search_analytics
+     ${whereClause}
+     ORDER BY created_at DESC
+     LIMIT ? OFFSET ?`,
+    [...queryParams, query.limit, offset],
+  );
+
+  response.status(200).json({
+    data: rows.map((r) => ({
+      id: r.id,
+      searchQuery: r.searchQuery,
+      normalizedQuery: r.normalizedQuery,
+      categoryScope: r.categoryScope,
+      resultsCount: Number(r.resultsCount || 0),
+      hasResults: Boolean(r.hasResults),
+      userId: r.userId,
+      createdAt: r.createdAt,
+    })),
+    pagination: formatPagination(query.page, query.limit, total),
+  });
+});
+
+/**
+ * DELETE /admin/search-analytics/prune
+ * Prune historical search analytics older than specified days (default 90 days, or all if 0).
+ */
+adminRouter.delete("/search-analytics/prune", async (request, response) => {
+  const query = parseOrThrow(
+    z.object({
+      olderThanDays: z.coerce.number().int().min(0).max(365).default(90),
+    }),
+    request.query,
+  );
+
+  let result: ResultSetHeader;
+  if (query.olderThanDays === 0) {
+    const [delRes] = await pool.query<ResultSetHeader>("DELETE FROM search_analytics");
+    result = delRes;
+  } else {
+    const [delRes] = await pool.execute<ResultSetHeader>(
+      "DELETE FROM search_analytics WHERE created_at < NOW() - INTERVAL ? DAY",
+      [query.olderThanDays],
+    );
+    result = delRes;
+  }
+
+  response.status(200).json({
+    data: {
+      deletedCount: result.affectedRows,
+      olderThanDays: query.olderThanDays,
+    },
+  });
 });
 
 function isDuplicateEntry(error: unknown): boolean {
