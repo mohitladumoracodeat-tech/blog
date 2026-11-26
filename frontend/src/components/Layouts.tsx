@@ -768,13 +768,13 @@ export function AdminLayout() {
         role={mobileOpen ? "dialog" : "navigation"}
         aria-modal={mobileOpen ? "true" : undefined}
         aria-label="Editorial Control Center Navigation"
-        className={`fixed inset-y-0 left-0 z-40 flex shrink-0 flex-col bg-[#12231b] dark:bg-[#0e1a14] text-white transition-all duration-300 ease-in-out h-screen overflow-y-auto ${
-          mobileOpen ? "translate-x-0 w-72 shadow-2xl" : "-translate-x-full lg:translate-x-0"
+        className={`fixed inset-y-0 left-0 z-40 flex shrink-0 flex-col bg-[#12231b] dark:bg-[#0e1a14] text-white transition-all duration-300 ease-in-out h-screen ${
+          mobileOpen ? "translate-x-0 w-72 shadow-2xl overflow-y-auto" : "-translate-x-full lg:translate-x-0 lg:overflow-visible"
         } ${collapsed ? "lg:w-20" : "lg:w-64"}`}
       >
         {/* Brand Header */}
-        <div className={`flex h-[68px] shrink-0 items-center border-b border-white/[.08] px-4 transition-all ${
-          collapsed ? "justify-center" : "justify-between"
+        <div className={`relative flex h-[68px] shrink-0 items-center border-b border-white/[.08] transition-all ${
+          collapsed ? "justify-center px-0" : "justify-between px-4"
         }`}>
           <Link
             to="/admin"
@@ -803,9 +803,13 @@ export function AdminLayout() {
             onClick={toggleCollapsed}
             aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
             title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-            className="hidden lg:grid size-7 place-items-center rounded-lg border border-white/10 text-white/50 hover:bg-white/[.08] hover:text-white transition"
+            className={
+              collapsed
+                ? "hidden lg:grid size-6 place-items-center rounded-full border border-white/20 bg-[#12231b] dark:bg-[#0e1a14] text-white/70 hover:text-white hover:border-lime/60 shadow-md transition absolute -right-3 top-1/2 -translate-y-1/2 z-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lime/50"
+                : "hidden lg:grid size-7 place-items-center rounded-lg border border-white/10 text-white/50 hover:bg-white/[.08] hover:text-white transition"
+            }
           >
-            {collapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
+            {collapsed ? <ChevronRight size={13} /> : <ChevronLeft size={14} />}
           </button>
         </div>
 
@@ -1138,14 +1142,14 @@ export function UserLayout() {
           FIXED DESKTOP SIDEBAR (Fixed, Independent Scroll, Collapsible)
           ════════════════════════════════════════════════════════════════ */}
       <aside
-        className={`fixed inset-y-0 left-0 z-40 hidden lg:flex flex-col border-r border-black/[.08] dark:border-white/[.08] bg-surface dark:bg-[#121614] text-ink transition-all duration-300 ease-in-out h-screen overflow-y-auto ${
+        className={`fixed inset-y-0 left-0 z-40 hidden lg:flex flex-col border-r border-black/[.08] dark:border-white/[.08] bg-surface dark:bg-[#121614] text-ink transition-all duration-300 ease-in-out h-screen overflow-visible ${
           sidebarCollapsed ? "w-20" : "w-64"
         }`}
       >
         {/* Brand Header */}
         <div
-          className={`flex h-16 shrink-0 items-center border-b border-black/[.08] dark:border-white/[.08] px-4 transition-all ${
-            sidebarCollapsed ? "justify-center" : "justify-between"
+          className={`relative flex h-16 shrink-0 items-center border-b border-black/[.08] dark:border-white/[.08] transition-all ${
+            sidebarCollapsed ? "justify-center px-0" : "justify-between px-4"
           }`}
         >
           <Link
@@ -1167,9 +1171,13 @@ export function UserLayout() {
             onClick={toggleSidebar}
             aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
             title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-            className="hidden lg:grid size-7 place-items-center rounded-lg border border-black/10 dark:border-white/10 text-muted hover:bg-paper dark:hover:bg-surface-elevated hover:text-ink transition"
+            className={
+              sidebarCollapsed
+                ? "hidden lg:grid size-6 place-items-center rounded-full border border-black/15 dark:border-white/20 bg-surface dark:bg-[#121614] text-ink hover:text-moss dark:hover:text-primary hover:border-moss/50 shadow-md transition absolute -right-3 top-1/2 -translate-y-1/2 z-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-moss/50"
+                : "hidden lg:grid size-7 place-items-center rounded-lg border border-black/10 dark:border-white/10 text-muted hover:bg-paper dark:hover:bg-surface-elevated hover:text-ink transition"
+            }
           >
-            {sidebarCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
+            {sidebarCollapsed ? <ChevronRight size={13} /> : <ChevronLeft size={14} />}
           </button>
         </div>
 
