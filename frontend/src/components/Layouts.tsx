@@ -1,9 +1,11 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, Suspense } from "react";
 import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import {
   ArrowRight,
   ArrowUpRight,
+  BarChart3,
   BookOpen,
+  Bookmark,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
@@ -14,6 +16,7 @@ import {
   LogIn,
   LogOut,
   Mail,
+  MailCheck,
   Menu,
   MessageSquareText,
   PenLine,
@@ -28,7 +31,8 @@ import {
   X,
 } from "lucide-react";
 import { useAuth } from "../auth/AuthContext";
-import { Notice, ThemeToggle } from "./UI";
+import { Loading, Notice, ThemeToggle } from "./UI";
+import { SearchAutocomplete } from "./SearchAutocomplete";
 import { confirmAction, showSuccess } from "../lib/alerts";
 
 const publicLinks = [
@@ -40,25 +44,46 @@ const publicLinks = [
 export function PublicLayout() {
   const { user, logout, error } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [headerSearch, setHeaderSearch] = useState("");
   const [mobileSearch, setMobileSearch] = useState("");
 
-  function handleHeaderSearch(e: React.FormEvent) {
-    e.preventDefault();
-    if (headerSearch.trim()) {
-      navigate(`/blogs?search=${encodeURIComponent(headerSearch.trim())}`);
+  // Close mobile drawer when route changes
+  useEffect(() => {
+    setMenuOpen(false);
+    setProfileOpen(false);
+    setSearchOpen(false);
+  }, [location.pathname]);
+
+  // Handle Escape key to close mobile drawer, search & dropdown
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        setMenuOpen(false);
+        setProfileOpen(false);
+        setSearchOpen(false);
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
+  function handleHeaderSearch(query?: string) {
+    const q = typeof query === "string" ? query : headerSearch;
+    if (q.trim()) {
+      navigate(`/blogs?search=${encodeURIComponent(q.trim())}`);
       setSearchOpen(false);
       setHeaderSearch("");
     }
   }
 
-  function handleMobileSearch(e: React.FormEvent) {
-    e.preventDefault();
-    if (mobileSearch.trim()) {
-      navigate(`/blogs?search=${encodeURIComponent(mobileSearch.trim())}`);
+  function handleMobileSearch(query?: string) {
+    const q = typeof query === "string" ? query : mobileSearch;
+    if (q.trim()) {
+      navigate(`/blogs?search=${encodeURIComponent(q.trim())}`);
       setMenuOpen(false);
       setMobileSearch("");
     }
@@ -90,7 +115,7 @@ export function PublicLayout() {
   });
 
   return (
-    <div className="min-h-screen bg-paper text-ink transition-colors duration-200 flex flex-col justify-between">
+    <div className="min-h-screen bg-paper text-ink transition-colors duration-200 flex flex-col justify-between overflow-x-hidden">
       <div>
         {/* Top Edition Masthead Ticker: Digital Magazine Header */}
         <div className="border-b border-black/[.06] dark:border-white/[.06] bg-surface/70 dark:bg-surface/50 text-[11px] font-medium tracking-wider text-muted hidden md:block">
@@ -153,24 +178,21 @@ export function PublicLayout() {
             <div className="hidden items-center gap-3 lg:flex">
               {/* Expandable Search Input or Trigger */}
               {searchOpen ? (
-                <form onSubmit={handleHeaderSearch} className="relative flex items-center">
-                  <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted" size={15} />
-                  <input
-                    type="text"
+                <div className="relative">
+                  <SearchAutocomplete
+                    value={headerSearch}
+                    onChange={setHeaderSearch}
+                    onClose={() => {
+                      setSearchOpen(false);
+                      setHeaderSearch("");
+                    }}
+                    onSubmit={handleHeaderSearch}
                     autoFocus
                     placeholder="Search stories, topics..."
-                    value={headerSearch}
-                    onChange={(e) => setHeaderSearch(e.target.value)}
-                    className="field !h-10 !w-60 !py-1 !pl-9 !pr-8 text-xs font-normal"
+                    inputClassName="!h-10 !w-72 lg:!w-80 text-xs font-normal"
+                    dropdownClassName="right-0 w-[360px] sm:w-[420px]"
                   />
-                  <button
-                    type="button"
-                    onClick={() => setSearchOpen(false)}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted hover:text-ink"
-                  >
-                    <X size={14} />
-                  </button>
-                </form>
+                </div>
               ) : (
                 <button
                   type="button"
@@ -300,6 +322,7 @@ export function PublicLayout() {
               <ThemeToggle size="sm" />
               <button
                 aria-label="Toggle navigation"
+                aria-expanded={menuOpen}
                 className="rounded-xl p-2.5 text-ink hover:bg-surface dark:hover:bg-surface-elevated transition"
                 onClick={() => setMenuOpen((open) => !open)}
               >
@@ -320,6 +343,9 @@ export function PublicLayout() {
 
           {/* Mobile Navigation Slide-Out Drawer */}
           <div
+            role={menuOpen ? "dialog" : undefined}
+            aria-modal={menuOpen ? "true" : undefined}
+            aria-label="Site Navigation"
             className={`fixed inset-y-0 right-0 z-50 flex w-full max-w-xs flex-col justify-between bg-surface dark:bg-[#171B19] border-l border-black/[.08] dark:border-white/[.08] text-ink p-6 shadow-2xl backdrop-blur-md transition-all duration-300 ease-in-out lg:hidden ${
               menuOpen ? "translate-x-0 opacity-100 pointer-events-auto" : "translate-x-full opacity-0 pointer-events-none invisible"
             }`}
@@ -349,16 +375,20 @@ export function PublicLayout() {
               </div>
 
               {/* Mobile Search */}
-              <form onSubmit={handleMobileSearch} className="relative mt-4">
-                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted" size={15} />
-                <input
-                  type="text"
-                  placeholder="Search stories, topics..."
+              <div className="mt-4">
+                <SearchAutocomplete
                   value={mobileSearch}
-                  onChange={(e) => setMobileSearch(e.target.value)}
-                  className="field !py-2.5 !pl-9 text-xs"
+                  onChange={setMobileSearch}
+                  onSubmit={handleMobileSearch}
+                  onClose={() => {
+                    setMenuOpen(false);
+                    setMobileSearch("");
+                  }}
+                  placeholder="Search stories, topics..."
+                  inputClassName="!py-2.5 text-xs w-full"
+                  dropdownClassName="left-0 right-0 w-full"
                 />
-              </form>
+              </div>
 
               {/* Mobile Navigation Links */}
               <nav className="mt-5 flex flex-col gap-1">
@@ -437,13 +467,12 @@ export function PublicLayout() {
                 ) : (
                   <div className="space-y-2 pt-2">
                     <Link
-                      className="flex w-full items-center justify-center rounded-xl border border-black/15 dark:border-white/15 bg-surface px-4 py-3 text-ink hover:bg-paper dark:hover:bg-surface-elevated transition shadow-sm"
+                      className="flex w-full items-center justify-center gap-2 rounded-xl border border-black/15 dark:border-white/15 bg-surface px-4 py-2.5 text-xs font-bold uppercase tracking-wider text-ink hover:bg-paper dark:hover:bg-surface-elevated transition shadow-sm"
                       to="/login"
                       onClick={() => setMenuOpen(false)}
-                      title="Log In"
-                      aria-label="Log In"
                     >
-                      <LogIn size={20} />
+                      <LogIn size={16} />
+                      <span>Log In</span>
                     </Link>
                     <Link
                       className="block w-full rounded-xl bg-moss dark:bg-primary px-4 py-2.5 text-center text-xs font-bold uppercase tracking-wider text-white dark:text-[#171B19] shadow-sm hover:bg-ink dark:hover:bg-primary/90"
@@ -593,6 +622,7 @@ const adminNavGroups: AdminNavGroup[] = [
     heading: "Overview",
     items: [
       { to: "/admin", label: "Dashboard", icon: LayoutDashboard, end: true },
+      { to: "/admin/search-analytics", label: "Search Analytics", icon: BarChart3 },
     ],
   },
   {
@@ -614,6 +644,7 @@ const adminNavGroups: AdminNavGroup[] = [
   {
     heading: "Communication",
     items: [
+      { to: "/admin/newsletter", label: "Newsletter Subscribers", icon: MailCheck },
       { to: "/admin/contacts", label: "Contact Inbox", icon: Mail },
     ],
   },
@@ -664,6 +695,18 @@ export function AdminLayout() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  // Handle Escape key for keyboard accessibility (Phase 4)
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setMobileOpen(false);
+        setProfileDropdownOpen(false);
+      }
+    }
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
   // Close mobile drawer and dropdown when route changes
   useEffect(() => {
     setMobileOpen(false);
@@ -698,6 +741,7 @@ export function AdminLayout() {
     if (path === "/admin/categories") return "Categories";
     if (path === "/admin/tags") return "Topic Tags";
     if (path === "/admin/comments") return "Comments Moderation";
+    if (path === "/admin/newsletter") return "Newsletter Subscribers";
     if (path === "/admin/contacts") return "Contact Inbox";
     if (path === "/admin/users") return "User Accounts";
     if (path === "/admin/images") return "Media Library";
@@ -721,6 +765,9 @@ export function AdminLayout() {
           ADMIN SIDEBAR (Fixed on Desktop, Independent Scroll, Mobile Drawer)
       ════════════════════════════════════════════════════════════════ */}
       <aside
+        role={mobileOpen ? "dialog" : "navigation"}
+        aria-modal={mobileOpen ? "true" : undefined}
+        aria-label="Editorial Control Center Navigation"
         className={`fixed inset-y-0 left-0 z-40 flex shrink-0 flex-col bg-[#12231b] dark:bg-[#0e1a14] text-white transition-all duration-300 ease-in-out h-screen overflow-y-auto ${
           mobileOpen ? "translate-x-0 w-72 shadow-2xl" : "-translate-x-full lg:translate-x-0"
         } ${collapsed ? "lg:w-20" : "lg:w-64"}`}
@@ -782,17 +829,17 @@ export function AdminLayout() {
                     onClick={() => setMobileOpen(false)}
                     title={collapsed ? label : undefined}
                     className={({ isActive }) =>
-                      `group flex items-center gap-3 rounded-xl py-2 text-[13px] font-semibold transition-all ${
+                      `group flex items-center gap-3 rounded-xl py-2.5 text-[13px] font-semibold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lime ${
                         collapsed ? "justify-center px-2" : "px-3"
                       } ${
                         isActive
                           ? "bg-lime/15 text-lime border-l-[3px] border-lime font-bold shadow-sm"
-                          : "border-l-[3px] border-transparent text-white/65 hover:bg-white/[.06] hover:text-white"
+                          : "border-l-[3px] border-transparent text-white/70 hover:bg-white/[.07] hover:text-white"
                       }`
                     }
                   >
-                    <Icon size={17} className="shrink-0 transition-transform group-hover:scale-105" />
-                    {!collapsed && <span className="truncate">{label}</span>}
+                    <Icon size={18} className="shrink-0 transition-transform duration-200 group-hover:scale-110" />
+                    {!collapsed && <span className="truncate whitespace-nowrap">{label}</span>}
                   </NavLink>
                 ))}
               </div>
@@ -868,9 +915,9 @@ export function AdminLayout() {
               <Menu size={18} />
             </button>
 
-            <div className="flex items-center gap-2 text-xs font-semibold text-muted">
-              <span className="font-extrabold uppercase tracking-wider text-moss dark:text-primary">Admin CMS</span>
-              <ChevronRight size={13} className="text-black/25 dark:text-white/25" />
+            <div className="flex items-center gap-2 text-xs font-semibold text-muted min-w-0">
+              <span className="font-extrabold uppercase tracking-wider text-moss dark:text-primary whitespace-nowrap hidden sm:inline">Admin CMS</span>
+              <ChevronRight size={13} className="text-black/25 dark:text-white/25 hidden sm:inline shrink-0" />
               <span className="font-bold text-ink truncate">{currentBreadcrumb}</span>
             </div>
           </div>
@@ -973,7 +1020,15 @@ export function AdminLayout() {
         {/* Content Outlet */}
         <main className="flex-1 p-3.5 sm:p-6 lg:p-8 overflow-x-hidden">
           <div className="mx-auto max-w-[1440px]">
-            <Outlet />
+            <Suspense
+              fallback={
+                <div className="flex min-h-[40vh] items-center justify-center p-8">
+                  <Loading />
+                </div>
+              }
+            >
+              <Outlet />
+            </Suspense>
           </div>
         </main>
       </section>
@@ -983,7 +1038,8 @@ export function AdminLayout() {
 
 const userNavLinks = [
   { to: "/dashboard", label: "Overview", icon: LayoutDashboard, end: true },
-  { to: "/dashboard/posts", label: "My Stories", icon: Files },
+  { to: "/dashboard/posts", label: "My Stories", icon: Files, end: true },
+  { to: "/dashboard/bookmarks", label: "Saved Stories", icon: Bookmark },
   { to: "/dashboard/posts/new", label: "Write Story", icon: PenLine },
   { to: "/dashboard/comments", label: "My Comments", icon: MessageSquareText },
   { to: "/dashboard/profile", label: "Profile & Settings", icon: Settings },
@@ -1033,6 +1089,18 @@ export function UserLayout() {
     setProfileDropdownOpen(false);
   }, [location.pathname]);
 
+  // Handle Escape key to close mobile drawer & dropdown
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        setMobileDrawerOpen(false);
+        setProfileDropdownOpen(false);
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
   async function handleLogout() {
     const confirmed = await confirmAction({
       title: "Sign out of Fieldnotes?",
@@ -1058,6 +1126,7 @@ export function UserLayout() {
     if (path === "/dashboard/posts/new") return "New Manuscript";
     if (path.includes("/dashboard/posts/") && path.includes("/edit")) return "Edit Manuscript";
     if (path === "/dashboard/posts") return "My Stories";
+    if (path === "/dashboard/bookmarks") return "Saved Stories";
     if (path === "/dashboard/comments") return "Community Comments";
     if (path === "/dashboard/profile") return "Profile & Settings";
     return "Workspace";
@@ -1245,8 +1314,9 @@ export function UserLayout() {
             <button
               type="button"
               onClick={() => setMobileDrawerOpen(true)}
-              className="grid size-10 place-items-center rounded-xl border border-black/10 dark:border-white/10 text-ink transition hover:bg-paper dark:hover:bg-surface-elevated lg:hidden"
+              aria-expanded={mobileDrawerOpen}
               aria-label="Open creator desk navigation"
+              className="grid size-10 place-items-center rounded-xl border border-black/10 dark:border-white/10 text-ink transition hover:bg-paper dark:hover:bg-surface-elevated lg:hidden"
             >
               <Menu size={18} />
             </button>
@@ -1261,10 +1331,10 @@ export function UserLayout() {
             </Link>
 
             {/* Breadcrumb separator & page title */}
-            <div className="hidden sm:flex items-center gap-2 text-xs font-semibold text-muted pl-4 border-l border-black/10 dark:border-white/10">
-              <span className="uppercase tracking-wider">Creator Desk</span>
-              <ChevronRight size={13} className="text-muted/60" />
-              <span className="text-ink font-bold">{currentBreadcrumb}</span>
+            <div className="hidden sm:flex items-center gap-2 text-xs font-semibold text-muted pl-4 border-l border-black/10 dark:border-white/10 min-w-0">
+              <span className="uppercase tracking-wider whitespace-nowrap">Creator Desk</span>
+              <ChevronRight size={13} className="text-muted/60 shrink-0" />
+              <span className="text-ink font-bold truncate">{currentBreadcrumb}</span>
             </div>
           </div>
 
@@ -1394,7 +1464,15 @@ export function UserLayout() {
             3. MAIN OUTLET FOR USER PAGES
             ════════════════════════════════════════════════════════════════ */}
         <main className="mx-auto w-full max-w-7xl p-4 sm:p-6 lg:p-8 flex-1">
-          <Outlet />
+          <Suspense
+            fallback={
+              <div className="flex min-h-[40vh] items-center justify-center p-8">
+                <Loading />
+              </div>
+            }
+          >
+            <Outlet />
+          </Suspense>
         </main>
       </div>
 
@@ -1402,6 +1480,9 @@ export function UserLayout() {
           4. MOBILE SLIDE-OUT DRAWER
           ════════════════════════════════════════════════════════════════ */}
       <div
+        role={mobileDrawerOpen ? "dialog" : undefined}
+        aria-modal={mobileDrawerOpen ? "true" : undefined}
+        aria-label="Creator Desk Navigation"
         className={`fixed inset-0 z-50 lg:hidden transition-all duration-300 ${
           mobileDrawerOpen
             ? "visible opacity-100 pointer-events-auto"

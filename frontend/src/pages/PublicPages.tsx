@@ -1,34 +1,62 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import {
+  AlertCircle,
   ArrowDown,
+  ArrowLeft,
   ArrowRight,
   ArrowUpRight,
-  Check,
+  Bookmark,
+  BookOpen,
+  CheckCircle2,
   Clock,
-  Copy,
   Eye,
   EyeOff,
-  Facebook,
+  Flame,
   Heart,
-  Linkedin,
+  Loader2,
   Mail,
+  MailCheck,
   MessageSquareText,
   Search,
   Send,
   Share2,
+  Shield,
   Sparkles,
   Tag as TagIcon,
-  Twitter,
+  TrendingUp,
   X,
 } from "lucide-react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
-import { Button, Card, EmptyState, Field, Loading, Notice, Pagination, SelectField, TextArea } from "../components/UI";
+import {
+  ArticleDetailSkeleton,
+  Button,
+  Card,
+  EmptyState,
+  Field,
+  HeroSkeleton,
+  Loading,
+  Notice,
+  PageHeading,
+  Pagination,
+  PostCardSkeleton,
+  SelectField,
+  SkeletonBox,
+  TextArea,
+} from "../components/UI";
 import { Seo } from "../components/Seo";
+import { SearchAutocomplete } from "../components/SearchAutocomplete";
+import { ReadingProgressBar } from "../components/ReadingProgressBar";
+import { TableOfContents, extractHeadings } from "../components/TableOfContents";
+import { ArticleContent } from "../components/ArticleContent";
+import { SocialShare } from "../components/SocialShare";
+import { ReadingMode } from "../components/ReadingMode";
+import { ArticleAudioPlayer, TranslatedArticleData } from "../components/ArticleAudioPlayer";
+import { ListeningLanguage } from "../lib/speechUtils";
 import { api, getErrorMessage, imageUrl } from "../lib/api";
 import { confirmAction, showError, showSuccess, showToast, showWarning } from "../lib/alerts";
-import type { BlogPost, PageResult, SeoData, Taxonomy } from "../types";
+import type { AuthorProfileData, BlogPost, PageResult, SeoData, Taxonomy } from "../types";
 
 /* ══════════════════════════════════════════════════════════════════════
    TYPES & SHARED DATA HOOK
@@ -36,6 +64,7 @@ import type { BlogPost, PageResult, SeoData, Taxonomy } from "../types";
 
 interface HomeData {
   featuredPosts: BlogPost[];
+  trendingPosts?: BlogPost[];
   latestPosts: BlogPost[];
   popularPosts: BlogPost[];
   categories: Taxonomy[];
@@ -120,57 +149,66 @@ export function PostCard({
   featured = false,
   variant = "standard",
   index,
+  trendingRank,
 }: {
   post: BlogPost;
   featured?: boolean;
   variant?: "standard" | "featured" | "compact" | "spotlight";
   index?: number;
+  trendingRank?: number;
 }) {
   const wordCount = (post.excerpt || post.title || "").split(/\s+/).length * 10;
   const readMinutes = Math.max(2, Math.round(wordCount / 60));
   const isLead = featured || variant === "featured";
 
-  // 1. Featured Lead Magazine Cover Story
+  // 1. Featured Lead Magazine Cover Story (Hero Edition)
   if (isLead) {
     return (
-      <article className="group relative overflow-hidden rounded-3xl border border-black/[.08] dark:border-white/[.08] bg-surface shadow-card transition-all duration-300 hover:border-moss/40 hover:shadow-soft lg:grid lg:grid-cols-12 lg:gap-0">
-        <Link
-          to={`/blogs/${post.slug}`}
-          className="relative block min-h-[300px] overflow-hidden bg-black/5 dark:bg-white/5 sm:min-h-[360px] lg:col-span-7 lg:min-h-[460px]"
-        >
-          {post.featuredImagePath ? (
-            <img
-              src={imageUrl(post.featuredImagePath)}
-              alt={post.title}
-              className="absolute inset-0 size-full object-cover transition-transform duration-700 ease-out group-hover:scale-105"
-            />
-          ) : (
-            <div className="absolute inset-0 grid place-items-center bg-gradient-to-br from-moss/10 via-accent/15 to-moss/20">
-              <BookOpenMark />
-            </div>
-          )}
-          <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent lg:hidden" />
-          <div className="absolute left-5 top-5 flex items-center gap-2">
-            <span className="rounded-full border border-black/10 dark:border-white/10 bg-surface/90 dark:bg-surface/90 px-3.5 py-1 text-xs font-bold uppercase tracking-wider text-moss dark:text-primary shadow-sm backdrop-blur">
-              {post.category}
-            </span>
-            <span className="rounded-full bg-black/40 text-white px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-widest backdrop-blur">
-              Cover Story
-            </span>
-          </div>
-        </Link>
-
-        <div className="flex flex-col justify-between p-7 sm:p-10 lg:col-span-5 lg:p-10 xl:p-12">
-          <div>
-            <div className="flex flex-wrap items-center gap-2.5 text-xs text-muted">
-              <span className="grid size-6 place-items-center overflow-hidden rounded-full bg-accent/30 text-[11px] font-bold text-moss dark:text-primary">
-                {post.authorProfileImagePath ? (
-                  <img src={imageUrl(post.authorProfileImagePath)} alt="" className="size-full object-cover" />
-                ) : (
-                  post.author.slice(0, 1).toUpperCase()
-                )}
+      <article className="group relative flex flex-col justify-between h-full overflow-hidden rounded-3xl border border-black/[.08] dark:border-white/[.08] bg-surface shadow-card transition-all duration-300 hover:border-moss/40 hover:shadow-soft">
+        <div>
+          <Link
+            to={`/blogs/${post.slug}`}
+            className="relative block aspect-[16/10] w-full overflow-hidden bg-black/5 dark:bg-white/5"
+          >
+            {post.featuredImagePath ? (
+              <img
+                src={imageUrl(post.featuredImagePath)}
+                alt={post.title}
+                className="size-full object-cover transition-transform duration-700 ease-out group-hover:scale-105"
+              />
+            ) : (
+              <div className="size-full grid place-items-center bg-gradient-to-br from-moss/10 via-accent/15 to-moss/20">
+                <BookOpenMark />
+              </div>
+            )}
+            <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent opacity-60 group-hover:opacity-40 transition-opacity" />
+            <div className="absolute left-4 top-4 sm:left-5 sm:top-5 flex flex-wrap items-center gap-2 max-w-[calc(100%-2rem)]">
+              <span className="rounded-full border border-black/10 dark:border-white/10 bg-surface/90 dark:bg-surface/90 px-3 py-1 text-xs font-bold uppercase tracking-wider text-moss dark:text-primary shadow-sm backdrop-blur">
+                {post.category}
               </span>
-              <span className="font-semibold text-ink">{post.author}</span>
+              <span className="inline-flex items-center gap-1 rounded-full bg-black/60 text-white px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest backdrop-blur border border-white/10">
+                <Sparkles size={10} className="text-amber-400 fill-amber-400" />
+                Featured Story
+              </span>
+            </div>
+          </Link>
+
+          <div className="p-7 sm:p-9">
+            <div className="flex flex-wrap items-center gap-2.5 text-xs text-muted">
+              <Link
+                to={`/author/${encodeURIComponent(post.author)}`}
+                className="inline-flex items-center gap-2 hover:text-moss dark:hover:text-primary transition-colors group/author"
+                aria-label={`View ${post.author}'s profile`}
+              >
+                <span className="grid size-6 place-items-center overflow-hidden rounded-full bg-accent/30 text-[11px] font-bold text-moss dark:text-primary">
+                  {post.authorProfileImagePath ? (
+                    <img src={imageUrl(post.authorProfileImagePath)} alt={post.author} className="size-full object-cover" />
+                  ) : (
+                    post.author.slice(0, 1).toUpperCase()
+                  )}
+                </span>
+                <span className="font-semibold text-ink group-hover/author:underline">{post.author}</span>
+              </Link>
               <span>·</span>
               <span>
                 {post.publishedAt
@@ -188,7 +226,7 @@ export function PostCard({
             </div>
 
             <Link to={`/blogs/${post.slug}`}>
-              <h2 className="mt-4 font-display text-2xl font-bold leading-[1.15] tracking-tight text-ink transition-colors duration-200 group-hover:text-moss dark:group-hover:text-primary sm:text-3xl lg:text-4xl">
+              <h2 className="mt-4 font-display text-2xl font-bold leading-[1.18] tracking-tight text-ink transition-colors duration-200 group-hover:text-moss dark:group-hover:text-primary sm:text-3xl lg:text-[2.25rem]">
                 {post.title}
               </h2>
             </Link>
@@ -213,8 +251,10 @@ export function PostCard({
               </div>
             )}
           </div>
+        </div>
 
-          <div className="mt-8 flex items-center justify-between border-t border-black/[.08] dark:border-white/[.08] pt-5">
+        <div className="px-7 sm:px-9 pb-7 pt-4">
+          <div className="flex items-center justify-between border-t border-black/[.08] dark:border-white/[.08] pt-5">
             <div className="flex items-center gap-4 text-xs font-semibold text-muted">
               <span className="inline-flex items-center gap-1.5">
                 <Heart size={14} className="text-red-500" /> {post.likeCount ?? 0}
@@ -225,9 +265,10 @@ export function PostCard({
             </div>
             <Link
               to={`/blogs/${post.slug}`}
-              className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-moss dark:text-primary transition group-hover:translate-x-1"
+              className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-moss dark:text-primary transition group-hover:translate-x-1 whitespace-nowrap shrink-0"
             >
-              Read full story <ArrowRight size={14} />
+              <span>Read full story</span>
+              <ArrowRight size={14} />
             </Link>
           </div>
         </div>
@@ -259,7 +300,12 @@ export function PostCard({
             </h3>
           </Link>
           <div className="mt-2 flex items-center gap-2 text-[11px] text-muted">
-            <span className="font-medium text-ink/75">{post.author}</span>
+            <Link
+              to={`/author/${encodeURIComponent(post.author)}`}
+              className="font-medium text-ink/75 hover:text-moss dark:hover:text-primary hover:underline transition-colors"
+            >
+              {post.author}
+            </Link>
             <span>·</span>
             <span>
               {post.publishedAt
@@ -343,7 +389,7 @@ export function PostCard({
 
   // 4. Standard Digital Magazine Grid Card
   return (
-    <article className="group flex flex-col justify-between overflow-hidden rounded-3xl border border-black/[.08] dark:border-white/[.08] bg-surface shadow-card transition-all duration-300 hover:-translate-y-1 hover:border-moss/40 hover:shadow-soft">
+    <article className="group flex flex-col justify-between h-full overflow-hidden rounded-3xl border border-black/[.08] dark:border-white/[.08] bg-surface shadow-card transition-all duration-300 hover:-translate-y-1 hover:border-moss/40 hover:shadow-soft">
       <div>
         <Link
           to={`/blogs/${post.slug}`}
@@ -360,21 +406,40 @@ export function PostCard({
               <BookOpenMark />
             </div>
           )}
-          <span className="absolute left-4 top-4 rounded-full border border-black/10 dark:border-white/10 bg-surface/90 dark:bg-surface/90 px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-moss dark:text-primary shadow-sm backdrop-blur">
-            {post.category}
-          </span>
+          <div className="absolute left-4 top-4 flex items-center gap-1.5">
+            <span className="rounded-full border border-black/10 dark:border-white/10 bg-surface/90 dark:bg-surface/90 px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-moss dark:text-primary shadow-sm backdrop-blur">
+              {post.category}
+            </span>
+            {Boolean(post.isFeatured) && !trendingRank && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider backdrop-blur">
+                <Sparkles size={10} className="text-amber-500 fill-amber-500" />
+                Featured
+              </span>
+            )}
+          </div>
+          {trendingRank !== undefined && (
+            <span className="absolute right-4 top-4 inline-flex items-center gap-1 rounded-full bg-amber-500 text-white dark:bg-amber-400 dark:text-[#171B19] px-2.5 py-1 text-[10px] font-black uppercase tracking-wider shadow-md backdrop-blur">
+              <TrendingUp size={11} /> #{trendingRank} Trending
+            </span>
+          )}
         </Link>
 
         <div className="p-6 sm:p-7">
           <div className="flex items-center gap-2 text-xs text-muted">
-            <span className="grid size-5 place-items-center overflow-hidden rounded-full bg-accent/30 text-[10px] font-bold text-moss dark:text-primary">
-              {post.authorProfileImagePath ? (
-                <img src={imageUrl(post.authorProfileImagePath)} alt="" className="size-full object-cover" />
-              ) : (
-                post.author.slice(0, 1).toUpperCase()
-              )}
-            </span>
-            <span className="font-semibold text-ink">{post.author}</span>
+            <Link
+              to={`/author/${encodeURIComponent(post.author)}`}
+              className="inline-flex items-center gap-2 hover:text-moss dark:hover:text-primary transition-colors group/author"
+              aria-label={`View ${post.author}'s profile`}
+            >
+              <span className="grid size-5 place-items-center overflow-hidden rounded-full bg-accent/30 text-[10px] font-bold text-moss dark:text-primary">
+                {post.authorProfileImagePath ? (
+                  <img src={imageUrl(post.authorProfileImagePath)} alt={post.author} className="size-full object-cover" />
+                ) : (
+                  post.author.slice(0, 1).toUpperCase()
+                )}
+              </span>
+              <span className="font-semibold text-ink group-hover/author:underline">{post.author}</span>
+            </Link>
             <span>·</span>
             <span>
               {post.publishedAt
@@ -439,6 +504,284 @@ export function PostCard({
 }
 
 /* ══════════════════════════════════════════════════════════════════════
+   RECOMMENDED STORY CARD
+   ══════════════════════════════════════════════════════════════════════ */
+
+export function RecommendedStoryCard({ post }: { post: BlogPost }) {
+  const wordCount = (post.excerpt || post.title || "").split(/\s+/).length * 10;
+  const readMinutes = Math.max(2, Math.round(wordCount / 60));
+
+  return (
+    <article className="group flex flex-col justify-between overflow-hidden rounded-2xl border border-black/[.08] dark:border-white/[.08] bg-surface shadow-card transition-all duration-300 hover:-translate-y-1 hover:border-moss/40 hover:shadow-soft">
+      <div>
+        <Link
+          to={`/blogs/${post.slug}`}
+          className="relative block aspect-[16/10] w-full overflow-hidden bg-black/5 dark:bg-white/5"
+          aria-label={post.title}
+        >
+          {post.featuredImagePath ? (
+            <img
+              src={imageUrl(post.featuredImagePath)}
+              alt={post.title}
+              className="size-full object-cover transition-transform duration-500 ease-out group-hover:scale-105"
+              loading="lazy"
+            />
+          ) : (
+            <div className="grid size-full place-items-center bg-gradient-to-br from-moss/10 via-accent/15 to-moss/20">
+              <BookOpenMark />
+            </div>
+          )}
+          {post.category && (
+            <span className="absolute left-3 top-3 rounded-full border border-black/10 dark:border-white/10 bg-surface/90 dark:bg-surface/90 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-moss dark:text-primary shadow-sm backdrop-blur">
+              {post.category}
+            </span>
+          )}
+        </Link>
+
+        <div className="p-5">
+          <div className="flex items-center gap-2 text-xs text-muted">
+            <Link
+              to={`/author/${encodeURIComponent(post.author)}`}
+              className="inline-flex items-center gap-2 hover:text-moss dark:hover:text-primary transition-colors group/author min-w-0"
+              aria-label={`View ${post.author}'s profile`}
+            >
+              <span className="grid size-5 shrink-0 place-items-center overflow-hidden rounded-full bg-accent/30 text-[10px] font-bold text-moss dark:text-primary">
+                {post.authorProfileImagePath ? (
+                  <img src={imageUrl(post.authorProfileImagePath)} alt={post.author} className="size-full object-cover" />
+                ) : (
+                  (post.author || "A").slice(0, 1).toUpperCase()
+                )}
+              </span>
+              <span className="font-semibold text-ink truncate max-w-[110px] group-hover/author:underline">{post.author}</span>
+            </Link>
+            <span>·</span>
+            <span>
+              {post.publishedAt
+                ? new Date(post.publishedAt).toLocaleDateString(undefined, {
+                    month: "short",
+                    day: "numeric",
+                    year: "numeric",
+                  })
+                : "Recently"}
+            </span>
+          </div>
+
+          <Link to={`/blogs/${post.slug}`} className="block mt-2.5 group-hover:text-moss dark:group-hover:text-primary transition-colors">
+            <h3 className="font-display text-lg font-bold leading-snug tracking-tight text-ink line-clamp-2">
+              {post.title}
+            </h3>
+          </Link>
+
+          {post.excerpt && (
+            <p className="mt-2 text-xs sm:text-sm leading-relaxed text-muted line-clamp-2">
+              {post.excerpt}
+            </p>
+          )}
+        </div>
+      </div>
+
+      <div className="flex items-center justify-between border-t border-black/[.06] dark:border-white/[.08] px-5 py-3.5 text-xs">
+        <span className="inline-flex items-center gap-1 text-[11px] text-muted">
+          <Clock size={12} /> {readMinutes} min read
+        </span>
+        <Link
+          to={`/blogs/${post.slug}`}
+          className="inline-flex items-center gap-1 font-bold text-moss dark:text-primary transition hover:underline"
+        >
+          Read story <ArrowRight size={13} />
+        </Link>
+      </div>
+    </article>
+  );
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   RICH EDITORIAL CATEGORY CARD (Phase 2B)
+   ══════════════════════════════════════════════════════════════════════ */
+
+export function CategoryCard({ category }: { category: Taxonomy }) {
+  const [imgError, setImgError] = useState(false);
+  const storyCount = category.postCount ?? 0;
+  const countLabel = storyCount === 1 ? "1 Story" : `${storyCount} Stories`;
+
+  return (
+    <Link
+      to={`/category/${category.slug}`}
+      className="group relative flex flex-col justify-between overflow-hidden rounded-3xl border border-black/[.08] dark:border-white/[.08] bg-surface shadow-card transition-all duration-300 hover:-translate-y-1.5 hover:border-moss/40 hover:shadow-soft focus-visible:outline-2 focus-visible:outline-moss dark:focus-visible:outline-primary"
+      aria-label={`Explore ${category.name} — ${countLabel}`}
+    >
+      <div>
+        {/* Cover Image Container with Consistent 16:10 Ratio */}
+        <div className="relative aspect-[16/10] w-full overflow-hidden bg-black/5 dark:bg-white/5">
+          {category.imagePath && !imgError ? (
+            <img
+              src={imageUrl(category.imagePath)}
+              alt={category.name}
+              className="size-full object-cover transition-transform duration-700 ease-out group-hover:scale-105"
+              loading="lazy"
+              onError={() => setImgError(true)}
+            />
+          ) : (
+            <div className="grid size-full place-items-center bg-gradient-to-br from-moss/10 via-accent/15 to-moss/20">
+              <span className="grid size-12 place-items-center rounded-2xl bg-surface/90 text-moss dark:text-primary shadow-sm backdrop-blur">
+                <Sparkles size={24} />
+              </span>
+            </div>
+          )}
+
+          {/* Vignette gradient overlay for depth and high contrast text */}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent opacity-60 group-hover:opacity-40 transition-opacity" />
+
+          {/* Floating Category Story Count Pill */}
+          <span className="absolute bottom-3 right-3 rounded-full bg-black/60 dark:bg-black/75 px-2.5 py-1 text-[11px] font-bold text-white backdrop-blur shadow-sm border border-white/10">
+            {countLabel}
+          </span>
+        </div>
+
+        {/* Card Content: Title & Short Description */}
+        <div className="p-5 sm:p-6">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-[10px] font-extrabold uppercase tracking-[0.2em] text-moss dark:text-primary">
+              Collection
+            </span>
+          </div>
+          <h3 className="font-display text-lg sm:text-xl font-bold leading-snug tracking-tight text-ink transition-colors duration-200 group-hover:text-moss dark:group-hover:text-primary">
+            {category.name}
+          </h3>
+          <p className="mt-2 text-xs sm:text-sm leading-relaxed text-muted line-clamp-2">
+            {category.description || `Explore thoughtful essays, blueprints, and guides in ${category.name}.`}
+          </p>
+        </div>
+      </div>
+
+      {/* Footer CTA cue */}
+      <div className="border-t border-black/[.06] dark:border-white/[.08] px-5 sm:px-6 py-3.5 flex items-center justify-between text-xs font-bold uppercase tracking-wider text-moss dark:text-primary bg-paper/40 dark:bg-surface-elevated/40">
+        <span>Explore Collection</span>
+        <ArrowRight size={14} className="transition-transform duration-200 group-hover:translate-x-1" />
+      </div>
+    </Link>
+  );
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   NEWSLETTER SUBSCRIPTION SECTION (Phase 2C — Letters Worth Reading)
+   ══════════════════════════════════════════════════════════════════════ */
+
+export function NewsletterSection() {
+  const [email, setEmail] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [statusMessage, setStatusMessage] = useState<{ type: "success" | "error" | "info"; text: string } | null>(null);
+
+  const handleSubscribe = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setStatusMessage(null);
+    const cleanEmail = email.trim().toLowerCase();
+    if (!cleanEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+      setStatusMessage({ type: "error", text: "Please provide a valid email address." });
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const response = await api.post<{
+        message: string;
+        status: string;
+        emailDelivered: boolean;
+        providerConfigured: boolean;
+        devVerificationToken?: string;
+      }>("/public/newsletter/subscribe", { email: cleanEmail });
+
+      const msg = response.data?.message || "Thank you for subscribing! Please check your email to verify your subscription.";
+      setStatusMessage({ type: "success", text: msg });
+      setEmail("");
+
+      await showSuccess(msg, "Subscription Received");
+    } catch (err: any) {
+      const errMsg = err?.response?.data?.error?.message || err?.message || "Failed to subscribe. Please try again later.";
+      setStatusMessage({ type: "error", text: errMsg });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <section aria-label="Newsletter Subscription" className="overflow-hidden rounded-3xl border border-black/[.08] dark:border-white/[.08] bg-surface p-8 shadow-card sm:p-14 relative">
+      <div className="max-w-2xl">
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-accent/30 dark:bg-accent/20 px-3.5 py-1 text-xs font-bold uppercase tracking-wider text-moss dark:text-primary">
+          <Mail size={13} /> Weekly Editorial Dispatch
+        </span>
+        <h2 className="mt-5 font-display text-3xl font-bold text-ink sm:text-4xl">
+          Letters Worth Reading
+        </h2>
+        <p className="mt-3 text-muted leading-relaxed">
+          Get thoughtful stories, ideas, and insights from Fieldnotes Journal delivered to your inbox.
+        </p>
+
+        <form onSubmit={handleSubscribe} className="mt-6 flex flex-col sm:flex-row gap-3 max-w-lg">
+          <div className="relative flex-1">
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="you@domain.com"
+              required
+              aria-label="Email address for newsletter"
+              className="w-full rounded-2xl border border-black/10 dark:border-white/10 bg-paper/60 dark:bg-background/60 px-4 py-3 text-sm text-ink placeholder:text-muted focus:border-moss focus:outline-none focus:ring-2 focus:ring-moss/20 dark:focus:border-primary dark:focus:ring-primary/20 transition-all"
+            />
+          </div>
+          <button
+            type="submit"
+            disabled={loading}
+            className="inline-flex items-center justify-center gap-2 rounded-2xl bg-moss dark:bg-primary px-6 py-3 text-sm font-bold text-white dark:text-[#171B19] shadow-sm hover:opacity-90 disabled:opacity-50 transition-all shrink-0 cursor-pointer"
+          >
+            {loading ? (
+              <>
+                <Loader2 size={16} className="animate-spin" />
+                <span>Subscribing...</span>
+              </>
+            ) : (
+              <>
+                <span>Subscribe</span>
+                <ArrowRight size={15} />
+              </>
+            )}
+          </button>
+        </form>
+
+        {statusMessage && (
+          <div
+            className={`mt-4 rounded-xl p-3.5 text-xs font-medium leading-relaxed max-w-lg flex items-start gap-2.5 ${
+              statusMessage.type === "success"
+                ? "bg-emerald-500/10 text-emerald-800 dark:text-emerald-300 border border-emerald-500/20"
+                : statusMessage.type === "error"
+                ? "bg-red-500/10 text-red-800 dark:text-red-300 border border-red-500/20"
+                : "bg-blue-500/10 text-blue-800 dark:text-blue-300 border border-blue-500/20"
+            }`}
+          >
+            {statusMessage.type === "success" ? (
+              <CheckCircle2 size={16} className="shrink-0 mt-0.5" />
+            ) : (
+              <AlertCircle size={16} className="shrink-0 mt-0.5" />
+            )}
+            <div>
+              <p>{statusMessage.text}</p>
+              <p className="mt-1 text-[11px] opacity-80">
+                Notice: Double opt-in verification required. Subscriptions remain pending until confirmed.
+              </p>
+            </div>
+          </div>
+        )}
+
+        <div className="mt-4 flex items-center gap-2 text-[11px] text-muted">
+          <Shield size={12} className="text-moss dark:text-primary shrink-0" />
+          <span>Double opt-in verification. Strictly no spam, unsubscribe with one click anytime.</span>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ══════════════════════════════════════════════════════════════════════
    HOME PAGE (CONTEMPORARY DIGITAL MAGAZINE)
    ══════════════════════════════════════════════════════════════════════ */
 
@@ -447,21 +790,39 @@ export function HomePage() {
   const [searchQuery, setSearchQuery] = useState("");
   const navigate = useNavigate();
 
-  function handleSearchSubmit(event: FormEvent) {
-    event.preventDefault();
-    if (searchQuery.trim()) {
-      navigate(`/blogs?search=${encodeURIComponent(searchQuery.trim())}`);
+  function handleSearchSubmit(query?: string) {
+    const q = typeof query === "string" ? query : searchQuery;
+    if (q.trim()) {
+      navigate(`/blogs?search=${encodeURIComponent(q.trim())}`);
     }
   }
 
-  if (loading) return <Loading label="Gathering the latest stories..." />;
+  if (loading) {
+    return (
+      <div className="space-y-16 sm:space-y-20 lg:space-y-24">
+        <HeroSkeleton />
+        <section>
+          <div className="mb-8 border-b border-black/[.08] dark:border-white/[.08] pb-4">
+            <SkeletonBox className="h-4 w-36 mb-2" />
+            <SkeletonBox className="h-8 w-64" />
+          </div>
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            <PostCardSkeleton count={6} />
+          </div>
+        </section>
+      </div>
+    );
+  }
   if (error || !data) return <Notice>{error ?? "Could not load the homepage."}</Notice>;
 
   const lead = data.featuredPosts[0];
   const sideDispatches = data.featuredPosts.slice(1, 4).length > 0
     ? data.featuredPosts.slice(1, 4)
-    : data.latestPosts.slice(0, 3);
-  const spotlightPost = data.featuredPosts.length > 4 ? data.featuredPosts[4] : data.popularPosts[0];
+    : data.latestPosts.filter((p) => p.id !== lead?.id).slice(0, 3);
+  const spotlightPost = data.featuredPosts.length > 4 ? data.featuredPosts[4] : (data.trendingPosts?.[0] ?? data.popularPosts?.[0]);
+  const trendingStories = (data.trendingPosts && data.trendingPosts.length > 0)
+    ? data.trendingPosts
+    : data.popularPosts;
 
   return (
     <div className="space-y-16 sm:space-y-20 lg:space-y-24">
@@ -496,35 +857,37 @@ export function HomePage() {
               Ideas worth <em className="font-normal italic text-moss dark:text-primary">keeping</em>.
             </h1>
           </div>
-          <form onSubmit={handleSearchSubmit} className="relative w-full sm:w-72 shrink-0">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted" size={15} />
-            <input
-              type="text"
-              placeholder="Search stories, ideas..."
+          <div className="w-full sm:w-80 shrink-0">
+            <SearchAutocomplete
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="field !py-2 !pl-9 text-xs"
+              onChange={setSearchQuery}
+              onSubmit={handleSearchSubmit}
+              placeholder="Search stories, ideas..."
+              inputClassName="!py-2 text-xs"
+              dropdownClassName="left-0 sm:right-0 sm:left-auto w-full sm:w-[400px]"
+              availableCategories={data.categories}
             />
-          </form>
+          </div>
         </div>
 
         {/* Asymmetric Hero Grid (Left 7 Cols: Lead Story, Right 5 Cols: Curated Digest) */}
         {lead ? (
-          <div className="grid gap-8 lg:grid-cols-12 lg:items-start">
+          <div className="grid gap-8 lg:grid-cols-12 lg:items-stretch">
             {/* Left Column: Lead Cover Story */}
-            <div className="lg:col-span-7">
+            <div className="lg:col-span-7 flex flex-col">
               <PostCard post={lead} featured />
             </div>
 
             {/* Right Column: The Editorial Digest (Numbered 01, 02, 03) */}
-            <div className="lg:col-span-5 rounded-3xl border border-black/[.08] dark:border-white/[.08] bg-surface p-6 sm:p-8 shadow-card flex flex-col justify-between">
+            <div className="lg:col-span-5 rounded-3xl border border-black/[.08] dark:border-white/[.08] bg-surface p-6 sm:p-8 shadow-card flex flex-col justify-between h-full">
               <div>
                 <div className="flex items-center justify-between border-b border-black/[.08] dark:border-white/[.08] pb-3 mb-3">
-                  <p className="text-xs font-extrabold uppercase tracking-[0.2em] text-moss dark:text-primary">
-                    The Digest · Curated
+                  <p className="text-xs font-extrabold uppercase tracking-[0.2em] text-moss dark:text-primary flex items-center gap-1.5">
+                    <Sparkles size={13} className="text-amber-500 fill-amber-500" />
+                    Featured Stories · Curated
                   </p>
                   <span className="text-[10px] font-bold uppercase tracking-wider text-muted">
-                    Editor&apos;s Selection
+                    Editorial Selection
                   </span>
                 </div>
                 <div className="divide-y divide-black/[.06] dark:divide-white/[.06]">
@@ -553,45 +916,37 @@ export function HomePage() {
         )}
       </section>
 
-      {/* 2. CATEGORIES MARQUEE / SECTIONS RIBBON */}
-      <section>
-        <div className="mb-6 flex items-end justify-between border-b border-black/[.08] dark:border-white/[.08] pb-4">
+      {/* 2. RICH EDITORIAL CATEGORY CARDS (Phase 2B — Explore by Category) */}
+      <section aria-label="Explore by Category">
+        <div className="mb-8 flex flex-col sm:flex-row sm:items-end justify-between border-b border-black/[.08] dark:border-white/[.08] pb-4 gap-2">
           <div>
-            <p className="text-xs font-bold uppercase tracking-[0.2em] text-moss dark:text-primary">Curated Sections</p>
-            <h2 className="mt-1 font-display text-2xl sm:text-3xl font-bold text-ink">Explore by topic</h2>
+            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.2em] text-moss dark:text-primary">
+              <Sparkles size={14} />
+              <span>Curated Collections</span>
+            </div>
+            <h2 className="mt-1 font-display text-3xl sm:text-4xl font-bold tracking-tight text-ink">
+              Explore by Category
+            </h2>
           </div>
           <Link
             to="/categories"
             className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-moss dark:text-primary hover:underline"
           >
-            All sections <ArrowRight size={14} />
+            All collections <ArrowRight size={14} />
           </Link>
         </div>
 
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
-          {data.categories.map((category) => (
-            <Link
-              key={category.id}
-              to={`/category/${category.slug}`}
-              className="group flex flex-col justify-between rounded-2xl border border-black/10 dark:border-white/10 bg-surface p-4 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:border-moss/40 hover:bg-paper dark:hover:bg-surface-elevated"
-            >
-              <div className="flex items-center justify-between">
-                <span className="grid size-8 place-items-center rounded-xl bg-accent/25 dark:bg-accent/20 text-moss dark:text-primary group-hover:scale-110 transition-transform">
-                  <Sparkles size={14} />
-                </span>
-                <span className="rounded-full bg-paper px-2 py-0.5 text-[10px] font-bold text-muted">
-                  {category.postCount ?? 0}
-                </span>
-              </div>
-              <h3 className="mt-3 font-display text-sm font-bold text-ink group-hover:text-moss dark:group-hover:text-primary transition-colors truncate">
-                {category.name}
-              </h3>
-            </Link>
-          ))}
-          {data.categories.length === 0 && (
-            <p className="col-span-full text-sm text-muted">Categories will appear here once stories are published.</p>
-          )}
-        </div>
+        {data.categories && data.categories.length > 0 ? (
+          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 mx-auto w-full">
+            {data.categories.map((category) => (
+              <CategoryCard key={category.id} category={category} />
+            ))}
+          </div>
+        ) : (
+          <EmptyState title="No categories available">
+            Categories will appear here once published by editors.
+          </EmptyState>
+        )}
       </section>
 
       {/* 3. EDITORIAL SPOTLIGHT SECTION */}
@@ -635,24 +990,29 @@ export function HomePage() {
         )}
       </section>
 
-      {/* 5. READER FAVORITES / MOST DISCUSSED */}
-      {data.popularPosts && data.popularPosts.length > 0 && (
-        <section>
-          <div className="mb-8 flex items-end justify-between border-b border-black/[.08] dark:border-white/[.08] pb-4">
+      {/* 5. SMART TRENDING STORIES (Time-Decay Engagement Model — Phase 2A) */}
+      {trendingStories && trendingStories.length > 0 && (
+        <section aria-label="Trending Stories">
+          <div className="mb-8 flex flex-col sm:flex-row sm:items-end justify-between border-b border-black/[.08] dark:border-white/[.08] pb-4 gap-2">
             <div>
-              <p className="text-xs font-bold uppercase tracking-[0.2em] text-moss dark:text-primary">Reader Favorites</p>
-              <h2 className="mt-1 font-display text-3xl font-bold text-ink sm:text-4xl">Most discussed stories</h2>
+              <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.2em] text-amber-600 dark:text-amber-400">
+                <Flame size={14} className="fill-amber-500 text-amber-500 animate-pulse" />
+                <span>Trending Now · Reader Velocity</span>
+              </div>
+              <h2 className="mt-1 font-display text-3xl sm:text-4xl font-bold tracking-tight text-ink">
+                Stories gaining momentum
+              </h2>
             </div>
             <Link
               to="/blogs?sort=popular"
-              className="hidden items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-moss dark:text-primary hover:underline sm:flex"
+              className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-moss dark:text-primary hover:underline"
             >
-              View all popular <ArrowRight size={14} />
+              View all trending <ArrowRight size={14} />
             </Link>
           </div>
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {data.popularPosts.map((post) => (
-              <PostCard key={post.id} post={post} />
+            {trendingStories.map((post, rank) => (
+              <PostCard key={post.id} post={post} trendingRank={rank + 1} />
             ))}
           </div>
         </section>
@@ -686,28 +1046,8 @@ export function HomePage() {
         </section>
       )}
 
-      {/* 7. FROM THE EDITORS (NEUTRAL EDITORIAL DISPATCH) */}
-      <section className="overflow-hidden rounded-3xl border border-black/[.08] dark:border-white/[.08] bg-surface p-8 shadow-card sm:p-14">
-        <div className="max-w-2xl">
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-accent/30 dark:bg-accent/20 px-3.5 py-1 text-xs font-bold uppercase tracking-wider text-moss dark:text-primary">
-            <Mail size={13} /> The Fieldnotes Colophon
-          </span>
-          <h2 className="mt-5 font-display text-3xl font-bold text-ink sm:text-4xl">
-            Thoughtful publishing, written with craft.
-          </h2>
-          <p className="mt-3 text-muted leading-relaxed">
-            Email newsletter subscriptions are currently not available. In the meantime, you can explore all our published stories, long-form investigations, and essays directly through the journal archives.
-          </p>
-          <div className="mt-6">
-            <Link
-              to="/blogs"
-              className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-moss dark:text-primary hover:underline"
-            >
-              Explore latest stories <ArrowRight size={14} />
-            </Link>
-          </div>
-        </div>
-      </section>
+      {/* 7. NEWSLETTER SUBSCRIPTION (Phase 2C — Letters Worth Reading) */}
+      <NewsletterSection />
 
       {/* 8. CREATOR / CONTRIBUTOR CALLOUT */}
       <section className="rounded-3xl border border-black/[.08] dark:border-white/[.08] bg-surface-elevated p-8 shadow-card sm:flex sm:items-center sm:justify-between sm:p-12">
@@ -732,7 +1072,7 @@ export function HomePage() {
 }
 
 /* ══════════════════════════════════════════════════════════════════════
-   BLOG LISTING PAGE (THE ARCHIVE)
+   BLOG LISTING PAGE
    ══════════════════════════════════════════════════════════════════════ */
 
 export function BlogListPage() {
@@ -743,7 +1083,7 @@ export function BlogListPage() {
   const sortOption = params.get("sort") ?? "latest";
   const page = Number(params.get("page") ?? 1);
 
-  // Load categories and tags for filter dropdowns & horizontal pill bar
+  // Load categories and tags for filter dropdowns
   const { data: categoriesData } = useRequest<PageResult<Taxonomy>>("/public/categories?page=1&limit=50");
   const { data: tagsData } = useRequest<PageResult<Taxonomy>>("/public/tags?page=1&limit=50");
 
@@ -805,7 +1145,6 @@ export function BlogListPage() {
     const next = new URLSearchParams(params);
     next.set("page", String(nextPage));
     setParams(next);
-    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   const hasActiveFilters = Boolean(search || categoryFilter || tagFilter || sortOption !== "latest");
@@ -813,55 +1152,14 @@ export function BlogListPage() {
   return (
     <>
       <Seo
-        title="The Archive — Fieldnotes Digital Magazine"
-        description="Browse, filter, and explore thoughtful articles, guides, investigations, and stories."
+        title="Stories for Curious Minds — Fieldnotes"
+        description="Browse, filter, and explore thoughtful articles, guides, and stories."
       />
-
-      {/* Editorial Archive Masthead */}
-      <div className="mb-10 border-b-2 border-black/10 dark:border-white/10 pb-8">
-        <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.25em] text-moss dark:text-primary">
-          <Sparkles size={14} />
-          <span>The Fieldnotes Archive</span>
-        </div>
-        <h1 className="mt-2 font-display text-4xl sm:text-5xl lg:text-6xl font-black tracking-tight text-ink">
-          Curated Stories &amp; Dispatches.
-        </h1>
-        <p className="mt-3 max-w-2xl text-base sm:text-lg text-muted font-normal leading-relaxed">
-          Filter through our complete collection of long-form essays, critical reviews, craft explorations, and perspectives.
-        </p>
-
-        {/* 1-Click Category Pills Bar */}
-        <div className="mt-6 flex flex-wrap items-center gap-2 pt-2">
-          <button
-            type="button"
-            onClick={() => handleFilterChange("category", "")}
-            className={`rounded-full px-4 py-1.5 text-xs font-bold uppercase tracking-wider transition ${
-              !categoryFilter
-                ? "bg-moss text-white dark:bg-primary dark:text-[#171B19] shadow-sm"
-                : "border border-black/10 dark:border-white/10 bg-surface text-muted hover:text-ink hover:bg-paper dark:hover:bg-surface-elevated"
-            }`}
-          >
-            All Sections
-          </button>
-          {categoriesList.map((cat) => (
-            <button
-              key={cat.id}
-              type="button"
-              onClick={() => handleFilterChange("category", cat.slug === categoryFilter ? "" : cat.slug)}
-              className={`rounded-full px-4 py-1.5 text-xs font-bold uppercase tracking-wider transition ${
-                categoryFilter === cat.slug
-                  ? "bg-moss text-white dark:bg-primary dark:text-[#171B19] shadow-sm"
-                  : "border border-black/10 dark:border-white/10 bg-surface text-muted hover:text-ink hover:bg-paper dark:hover:bg-surface-elevated"
-              }`}
-            >
-              {cat.name}
-              {cat.postCount !== undefined && (
-                <span className="ml-1.5 opacity-70">({cat.postCount})</span>
-              )}
-            </button>
-          ))}
-        </div>
-      </div>
+      <PageHeading
+        eyebrow="The Journal"
+        title="Explore all stories."
+        description="Filter by topic, label, or popularity to find exactly what you're looking for."
+      />
 
       {/* Filter & Search Toolbar */}
       <div className="mb-10 space-y-4 rounded-3xl border border-black/[.08] dark:border-white/[.08] bg-surface p-6 shadow-card sm:p-8">
@@ -869,8 +1167,8 @@ export function BlogListPage() {
           <div className="relative flex-1">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-muted" size={18} />
             <input
-              className="field pl-11 !h-12"
-              placeholder="Search stories by title, topic, excerpt, or keyword..."
+              className="field !pl-11"
+              placeholder="Search by title, excerpt, or keywords..."
               value={search}
               onChange={(event) => setSearch(event.target.value)}
             />
@@ -887,14 +1185,14 @@ export function BlogListPage() {
               </button>
             )}
           </div>
-          <Button type="submit" className="shadow-sm sm:!h-12 sm:px-7 uppercase tracking-wider">
-            Search Archive
+          <Button type="submit" className="shadow-sm">
+            Search
           </Button>
         </form>
 
         <div className="grid gap-4 sm:grid-cols-3">
           <SelectField
-            label="Category"
+            label="Filter by Category"
             value={categoryFilter}
             onChange={(e) => handleFilterChange("category", e.target.value)}
           >
@@ -907,7 +1205,7 @@ export function BlogListPage() {
           </SelectField>
 
           <SelectField
-            label="Tag"
+            label="Filter by Tag"
             value={tagFilter}
             onChange={(e) => handleFilterChange("tag", e.target.value)}
           >
@@ -920,12 +1218,12 @@ export function BlogListPage() {
           </SelectField>
 
           <SelectField
-            label="Sort Order"
+            label="Sort By"
             value={sortOption}
             onChange={(e) => handleFilterChange("sort", e.target.value)}
           >
-            <option value="latest">Latest Published</option>
-            <option value="popular">Most Appreciated (Likes)</option>
+            <option value="latest">Latest Stories</option>
+            <option value="popular">Most Popular (Likes)</option>
           </SelectField>
         </div>
 
@@ -978,7 +1276,7 @@ export function BlogListPage() {
               onClick={clearAllFilters}
               className="ml-auto text-xs font-bold uppercase tracking-wider text-moss dark:text-primary hover:underline"
             >
-              Reset all filters
+              Reset all
             </button>
           </div>
         )}
@@ -986,7 +1284,9 @@ export function BlogListPage() {
 
       {/* Story Grid */}
       {loading ? (
-        <Loading label="Fetching journal articles..." />
+        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          <PostCardSkeleton count={6} />
+        </div>
       ) : error ? (
         <Notice>{error}</Notice>
       ) : postsList.length ? (
@@ -1007,8 +1307,50 @@ export function BlogListPage() {
           )}
         </>
       ) : (
-        <EmptyState title="No stories found matching your criteria">
-          Try clearing your search query or adjusting your filters to find what you are looking for.
+        <EmptyState
+          title="No stories found matching your criteria"
+          action={
+            <div className="flex flex-wrap items-center justify-center gap-3">
+              <Button
+                variant="primary"
+                onClick={clearAllFilters}
+                className="shadow-sm uppercase tracking-wider text-xs"
+              >
+                Clear all filters
+              </Button>
+              <Link
+                to="/categories"
+                className="inline-flex items-center justify-center gap-2 rounded-2xl border border-black/10 dark:border-white/10 bg-surface px-5 py-2.5 text-xs font-bold uppercase tracking-wider text-ink shadow-sm hover:bg-paper transition-all"
+              >
+                Browse collections
+              </Link>
+            </div>
+          }
+        >
+          <p className="mb-4 text-sm text-muted">
+            We couldn't find any articles matching {search ? `"${search}"` : "your selected filters"}.
+            Try refining your keywords or explore our curated collections below.
+          </p>
+          <div className="flex flex-wrap items-center justify-center gap-2 pt-2">
+            <span className="text-xs font-bold uppercase tracking-wider text-muted">Suggestions:</span>
+            {["Web Development", "Cloud & DevOps", "Software Architecture", "UI/UX Design"].map((catName) => (
+              <button
+                key={catName}
+                type="button"
+                onClick={() => {
+                  const matchingCat = categoriesList.find((c) => c.name.toLowerCase() === catName.toLowerCase());
+                  if (matchingCat) {
+                    handleFilterChange("category", matchingCat.slug);
+                  } else {
+                    handleFilterChange("search", catName);
+                  }
+                }}
+                className="rounded-full border border-black/10 dark:border-white/10 bg-surface px-3 py-1 text-xs font-semibold text-moss dark:text-primary hover:bg-paper transition"
+              >
+                {catName}
+              </button>
+            ))}
+          </div>
         </EmptyState>
       )}
     </>
@@ -1023,60 +1365,46 @@ export function TaxonomyListPage({ kind }: { kind: "categories" | "tags" }) {
   const { data, loading, error } = useRequest<PageResult<Taxonomy>>(`/public/${kind}?page=1&limit=100`);
   const noun = kind === "categories" ? "Categories" : "Tags";
   const path = kind === "categories" ? "/category/" : "/tag/";
-  const taxonomyList: Taxonomy[] = Array.isArray(data) ? data : (data?.data ?? []);
 
   return (
     <>
       <Seo
-        title={`Browse ${noun} — Fieldnotes Digital Magazine`}
+        title={`Browse ${noun} — Fieldnotes`}
         description="Follow an interest and find stories that speak your language."
       />
-      <div className="mb-10 border-b-2 border-black/10 dark:border-white/10 pb-8">
-        <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.25em] text-moss dark:text-primary">
-          <Sparkles size={14} />
-          <span>Curated Index</span>
-        </div>
-        <h1 className="mt-2 font-display text-4xl sm:text-5xl lg:text-6xl font-black tracking-tight text-ink">
-          Browse {noun}.
-        </h1>
-        <p className="mt-3 max-w-2xl text-base sm:text-lg text-muted font-normal leading-relaxed">
-          Follow your curiosity across dedicated topics, craft disciplines, and long-term research subjects.
-        </p>
-      </div>
-
+      <PageHeading
+        eyebrow="Explore"
+        title={`Browse ${noun}.`}
+        description="Follow an interest and find stories that speak your language."
+      />
       {loading ? (
-        <Loading />
+        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          <PostCardSkeleton count={6} />
+        </div>
       ) : error ? (
         <Notice>{error}</Notice>
-      ) : taxonomyList.length ? (
+      ) : data?.data.length ? (
         <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {taxonomyList.map((item) => (
+          {data.data.map((item) => (
             <Link
               key={item.id}
               to={`${path}${item.slug}`}
-              className="group rounded-3xl border border-black/[.08] dark:border-white/[.08] bg-surface p-7 shadow-card transition-all duration-200 hover:-translate-y-1 hover:border-moss/40 hover:shadow-soft flex flex-col justify-between"
+              className="group rounded-2xl border border-black/[.08] dark:border-white/[.08] bg-surface p-7 shadow-card transition-all duration-200 hover:-translate-y-1 hover:border-moss/40 hover:shadow-soft"
             >
-              <div>
-                <div className="flex items-start justify-between">
-                  <span className="grid size-12 place-items-center rounded-2xl bg-accent/30 dark:bg-accent/20 text-moss dark:text-primary group-hover:scale-105 transition-transform">
-                    <Sparkles size={22} />
-                  </span>
-                  <span className="rounded-full bg-paper px-3 py-1 text-xs font-bold text-moss dark:text-primary">
-                    {item.postCount ?? 0} {Number(item.postCount) === 1 ? "story" : "stories"}
-                  </span>
-                </div>
-                <h2 className="mt-6 font-display text-2xl font-bold text-ink transition-colors duration-200 group-hover:text-moss dark:group-hover:text-primary">
-                  {kind === "tags" ? `#${item.name}` : item.name}
-                </h2>
-                <p className="mt-2 text-sm leading-relaxed text-muted line-clamp-3">
-                  {item.description || `Read the latest published stories and discussions about ${item.name.toLowerCase()}.`}
-                </p>
+              <div className="flex items-start justify-between">
+                <span className="grid size-11 place-items-center rounded-2xl bg-accent/30 dark:bg-accent/20 text-moss dark:text-primary">
+                  <Sparkles size={20} />
+                </span>
+                <span className="rounded-full bg-paper px-3 py-1 text-xs font-bold text-moss dark:text-primary">
+                  {item.postCount ?? 0} {Number(item.postCount ?? 0) === 1 ? "story" : "stories"}
+                </span>
               </div>
-
-              <div className="mt-6 border-t border-black/[.06] dark:border-white/[.08] pt-4 flex items-center justify-between text-xs font-bold uppercase tracking-wider text-moss dark:text-primary">
-                <span>View collection</span>
-                <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform" />
-              </div>
+              <h2 className="mt-5 font-display text-2xl font-bold text-ink transition-colors duration-200 group-hover:text-moss dark:group-hover:text-primary">
+                {item.name}
+              </h2>
+              <p className="mt-2 text-sm leading-relaxed text-muted line-clamp-2">
+                {item.description || `Read the latest published stories and discussions about ${item.name.toLowerCase()}.`}
+              </p>
             </Link>
           ))}
         </div>
@@ -1111,31 +1439,23 @@ export function CategoryPage({ kind }: { kind: "categories" | "tags" }) {
         <ArrowDown className="rotate-90" size={14} /> All {endpoint}
       </Link>
       {loading ? (
-        <Loading />
+        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          <PostCardSkeleton count={6} />
+        </div>
       ) : error ? (
         <Notice>{error}</Notice>
       ) : (
         <>
           <Seo
-            title={`${taxonomy?.name ?? "Stories"} — Fieldnotes Digital Magazine`}
+            title={`${taxonomy?.name ?? "Stories"} — Fieldnotes`}
             description={taxonomy?.description ?? undefined}
             image={data?.category?.imagePath}
           />
-          <div className="mb-10 border-b-2 border-black/10 dark:border-white/10 pb-8">
-            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.25em] text-moss dark:text-primary">
-              <Sparkles size={14} />
-              <span>{kind === "categories" ? "Section Archive" : "Topic Label"}</span>
-            </div>
-            <h1 className="mt-2 font-display text-4xl sm:text-5xl lg:text-6xl font-black tracking-tight text-ink">
-              {taxonomy?.name ?? "Stories"}
-            </h1>
-            {taxonomy?.description && (
-              <p className="mt-3 max-w-2xl text-base sm:text-lg text-muted font-normal leading-relaxed">
-                {taxonomy.description}
-              </p>
-            )}
-          </div>
-
+          <PageHeading
+            eyebrow={kind === "categories" ? "Category Archive" : "Topic Tag"}
+            title={taxonomy?.name ?? "Stories"}
+            description={taxonomy?.description ?? undefined}
+          />
           {kind === "categories" && data?.category?.imagePath && (
             <img
               src={imageUrl(data.category.imagePath)}
@@ -1143,7 +1463,6 @@ export function CategoryPage({ kind }: { kind: "categories" | "tags" }) {
               className="mb-10 aspect-[21/9] w-full rounded-3xl object-cover shadow-soft border border-black/[.08] dark:border-white/[.08]"
             />
           )}
-
           {data?.posts.length ? (
             <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
               {data.posts.map((post) => (
@@ -1160,7 +1479,7 @@ export function CategoryPage({ kind }: { kind: "categories" | "tags" }) {
 }
 
 /* ══════════════════════════════════════════════════════════════════════
-   SINGLE BLOG DETAILS PAGE (CONTEMPORARY MAGAZINE ARTICLE)
+   SINGLE BLOG DETAILS PAGE
    ══════════════════════════════════════════════════════════════════════ */
 
 interface DetailPost extends BlogPost {
@@ -1179,6 +1498,7 @@ interface DetailPost extends BlogPost {
   images: Array<{ id: string; path: string; caption?: string | null }>;
   relatedPosts?: BlogPost[];
   isLiked?: boolean;
+  isBookmarked?: boolean;
   seoTitle?: string | null;
   seoDescription?: string | null;
   seoKeywords?: string | null;
@@ -1203,31 +1523,65 @@ export function BlogDetailPage() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [liked, setLiked] = useState(false);
   const [likeCount, setLikeCount] = useState(0);
-  const [copied, setCopied] = useState(false);
+  const [bookmarked, setBookmarked] = useState(false);
+  const [bookmarkLoading, setBookmarkLoading] = useState(false);
+  const [isReadingMode, setIsReadingMode] = useState(false);
+  const [activeSpeechDomId, setActiveSpeechDomId] = useState<string | null>(null);
 
-  const shareUrl = typeof window !== "undefined" && data ? `${window.location.origin}/blogs/${data.slug}` : "";
+  // Phase 1G: Multilingual listening & Hindi translation support
+  const [listeningLanguage, setListeningLanguage] = useState<ListeningLanguage>("en");
+  const [translatedArticle, setTranslatedArticle] = useState<TranslatedArticleData | null>(null);
 
-  function handleCopyLink() {
-    if (!shareUrl) return;
-    if (navigator?.clipboard?.writeText) {
-      void navigator.clipboard.writeText(shareUrl).then(() => {
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2500);
-      });
+  function handleLanguageChange(lang: ListeningLanguage, translated?: TranslatedArticleData) {
+    setListeningLanguage(lang);
+    if (lang === "hi" && translated) {
+      setTranslatedArticle(translated);
     } else {
-      const textArea = document.createElement("textarea");
-      textArea.value = shareUrl;
-      document.body.appendChild(textArea);
-      textArea.select();
-      try {
-        document.execCommand("copy");
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2500);
-      } finally {
-        textArea.remove();
-      }
+      setTranslatedArticle(null);
     }
   }
+
+  const displayTitle = listeningLanguage === "hi" && translatedArticle ? translatedArticle.title : data?.title || "";
+  const displayExcerpt = listeningLanguage === "hi" && translatedArticle ? (translatedArticle.excerpt ?? data?.excerpt) : data?.excerpt;
+  const displayContent = listeningLanguage === "hi" && translatedArticle ? translatedArticle.content : data?.content || "";
+
+  const contentRef = useRef<HTMLDivElement>(null);
+  const [activeHeadingId, setActiveHeadingId] = useState<string>("");
+
+  const headings = useMemo(() => {
+    return displayContent ? extractHeadings(displayContent) : [];
+  }, [displayContent]);
+
+  useEffect(() => {
+    if (headings.length === 0) return;
+
+    const headingElements = headings
+      .map((item) => document.getElementById(item.id))
+      .filter((el): el is HTMLElement => el !== null);
+
+    if (headingElements.length === 0) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            setActiveHeadingId(entry.target.id);
+            break;
+          }
+        }
+      },
+      {
+        rootMargin: "0px 0px -65% 0px",
+        threshold: 0,
+      }
+    );
+
+    headingElements.forEach((el) => observer.observe(el));
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [headings]);
 
   useEffect(() => {
     if (!data) return;
@@ -1241,8 +1595,46 @@ export function BlogDetailPage() {
           setLikeCount(response.data.data.likeCount);
         })
         .catch((requestError: unknown) => setActionError(getErrorMessage(requestError)));
+
+      api
+        .get<{ data: { isBookmarked: boolean } }>(`/user/bookmarks/${data.id}/status`)
+        .then((response) => {
+          setBookmarked(response.data.data.isBookmarked);
+        })
+        .catch(() => {
+          // Fall back to initial data.isBookmarked
+          if (data.isBookmarked !== undefined) {
+            setBookmarked(Boolean(data.isBookmarked));
+          }
+        });
+    } else {
+      setBookmarked(Boolean(data.isBookmarked));
     }
   }, [data, user]);
+
+  async function handleToggleBookmark() {
+    if (!user) {
+      navigate(`/login?returnUrl=${encodeURIComponent(window.location.pathname)}`);
+      return;
+    }
+    if (!data || bookmarkLoading) return;
+    setBookmarkLoading(true);
+    try {
+      if (bookmarked) {
+        await api.delete(`/user/bookmarks/${data.id}`);
+        setBookmarked(false);
+        showToast({ title: "Removed from saved stories", icon: "success" });
+      } else {
+        await api.post(`/user/bookmarks/${data.id}`);
+        setBookmarked(true);
+        showToast({ title: "Saved to your reading list", icon: "success" });
+      }
+    } catch (err) {
+      await showError("Bookmark Error", getErrorMessage(err));
+    } finally {
+      setBookmarkLoading(false);
+    }
+  }
 
   const jsonLd = data
     ? {
@@ -1327,14 +1719,35 @@ export function BlogDetailPage() {
     }
   }
 
-  if (loading) return <Loading label="Opening this story..." />;
+  if (loading) return <ArticleDetailSkeleton />;
   if (error || !data) return <Notice>{error ?? "Story not found."}</Notice>;
 
-  const wordCount = (data.content || "").trim().split(/\s+/).length;
+  const wordCount = (displayContent || "").trim().split(/\s+/).length;
   const readTime = Math.max(1, Math.ceil(wordCount / 200));
 
   return (
-    <article className="mx-auto max-w-4xl">
+    <article className="mx-auto max-w-5xl">
+      {/* Distraction-Free Reading Mode Modal Overlay (Phase 1E) */}
+      {isReadingMode && (
+        <ReadingMode
+          post={
+            listeningLanguage === "hi" && translatedArticle
+              ? { ...data, title: displayTitle, excerpt: displayExcerpt ?? null, content: displayContent }
+              : data
+          }
+          onClose={() => setIsReadingMode(false)}
+          bookmarked={bookmarked}
+          onToggleBookmark={handleToggleBookmark}
+          bookmarkLoading={bookmarkLoading}
+          liked={liked}
+          likeCount={likeCount}
+          onLike={likePost}
+        />
+      )}
+
+      {/* 1. Thin Reading Progress Bar based strictly on story reading content */}
+      <ReadingProgressBar targetRef={contentRef} />
+
       <Seo
         title={data.seoTitle ?? data.title}
         description={data.seoDescription ?? data.excerpt ?? undefined}
@@ -1360,7 +1773,7 @@ export function BlogDetailPage() {
         <ArrowDown className="rotate-90" size={14} /> Back to all stories
       </Link>
 
-      {/* Article Header: Kicker, Headline, Byline Bar */}
+      {/* Article Header: Category, Hindi View Badge, Reading Time, Editorial Title, Author Meta & Action Buttons */}
       <header className="mb-10">
         <div className="flex flex-wrap items-center gap-2 mb-4">
           <Link
@@ -1369,233 +1782,269 @@ export function BlogDetailPage() {
           >
             {data.categoryName}
           </Link>
+          {listeningLanguage === "hi" && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-orange-500/10 px-2.5 py-0.5 text-xs font-bold text-orange-600 dark:text-orange-400">
+              हिंदी अनुवाद (Hindi View)
+            </span>
+          )}
           <span className="text-muted text-xs">·</span>
           <span className="text-xs font-semibold text-muted uppercase tracking-wider">
             {readTime} min read
           </span>
         </div>
 
-        <h1 className="font-display text-4xl sm:text-5xl lg:text-6xl font-black leading-[1.1] tracking-tight text-ink">
-          {data.title}
+        <h1 className="font-display text-4xl sm:text-5xl lg:text-6xl font-black leading-[1.22] sm:leading-[1.15] lg:leading-[1.1] tracking-tight text-ink">
+          {displayTitle}
         </h1>
 
         <div className="mt-6 flex flex-wrap items-center justify-between gap-4 border-b border-black/[.08] dark:border-white/[.08] pb-6 text-xs text-muted sm:text-sm">
-          <div className="flex items-center gap-3">
-            <span className="grid size-10 place-items-center overflow-hidden rounded-full bg-accent/30 text-sm font-bold text-moss dark:text-primary shadow-sm">
-              {data.authorProfileImagePath ? (
-                <img src={imageUrl(data.authorProfileImagePath)} alt="" className="size-full object-cover" />
-              ) : (
-                data.author.slice(0, 1).toUpperCase()
-              )}
+          <div className="flex flex-wrap items-center gap-3">
+            <Link
+              to={`/author/${encodeURIComponent(data.author)}`}
+              className="flex items-center gap-2.5 hover:text-moss dark:hover:text-primary transition-colors group/author"
+            >
+              <span className="grid size-9 place-items-center overflow-hidden rounded-full bg-accent/30 text-sm font-bold text-moss dark:text-primary">
+                {data.authorProfileImagePath ? (
+                  <img src={imageUrl(data.authorProfileImagePath)} alt="" className="size-full object-cover" />
+                ) : (
+                  data.author.slice(0, 1).toUpperCase()
+                )}
+              </span>
+              <span className="font-semibold text-ink group-hover/author:underline">{data.author}</span>
+            </Link>
+            <span>·</span>
+            <span>
+              {data.publishedAt
+                ? new Date(data.publishedAt).toLocaleDateString(undefined, {
+                    month: "long",
+                    day: "numeric",
+                    year: "numeric",
+                  })
+                : "Recently published"}
             </span>
-            <div>
-              <p className="font-bold text-ink leading-tight">{data.author}</p>
-              <p className="text-[11px] text-muted">
-                {data.publishedAt
-                  ? new Date(data.publishedAt).toLocaleDateString(undefined, {
-                      month: "long",
-                      day: "numeric",
-                      year: "numeric",
-                    })
-                  : "Recently published"}
-              </p>
-            </div>
+            <span>·</span>
+            <span className="inline-flex items-center gap-1">
+              <Eye size={14} /> {data.viewCount ?? 0} views
+            </span>
           </div>
 
-          <div className="flex items-center gap-4 text-xs font-semibold">
-            <span className="inline-flex items-center gap-1.5 text-muted">
-              <Eye size={15} /> {data.viewCount ?? 0} views
-            </span>
-            <span className="inline-flex items-center gap-1.5 text-muted">
-              <Heart size={15} className="text-red-500" /> {likeCount} likes
-            </span>
-            <span className="inline-flex items-center gap-1.5 text-muted">
-              <MessageSquareText size={15} /> {data.comments.length} {data.comments.length === 1 ? "comment" : "comments"}
-            </span>
+          {/* Bookmark & Reading Mode Action Buttons */}
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleToggleBookmark}
+              disabled={bookmarkLoading}
+              aria-label={bookmarked ? "Remove bookmark" : "Save story"}
+              title={bookmarked ? "Saved to your reading list" : "Save this story to read later"}
+              className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-all border ${
+                bookmarked
+                  ? "border-moss/40 bg-moss/10 dark:bg-primary/20 text-moss dark:text-primary font-bold shadow-sm"
+                  : "border-black/10 dark:border-white/10 text-muted hover:text-ink hover:border-black/20"
+              } disabled:opacity-50`}
+            >
+              <Bookmark size={14} fill={bookmarked ? "currentColor" : "none"} />
+              <span>{bookmarked ? "Saved" : "Save"}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsReadingMode(true)}
+              aria-label="Enter distraction-free reading mode"
+              title="Distraction-Free Reading Mode (Zen view)"
+              className="inline-flex items-center gap-1.5 rounded-full border border-black/10 dark:border-white/10 bg-surface px-3 py-1.5 text-xs font-semibold text-muted hover:text-moss dark:hover:text-primary hover:border-moss/30 dark:hover:border-primary/30 transition-all shadow-sm"
+            >
+              <BookOpen size={14} className="text-moss dark:text-primary" />
+              <span>Reading Mode</span>
+            </button>
           </div>
         </div>
       </header>
+
+      {/* Listen to Article Audio Player (Phase 1F + 1G) */}
+      <ArticleAudioPlayer
+        content={data.content}
+        title={data.title}
+        excerpt={data.excerpt}
+        storyId={data.id}
+        onSegmentChange={setActiveSpeechDomId}
+        onLanguageChange={handleLanguageChange}
+        variant="card"
+      />
 
       {/* Featured Cover Image */}
       {data.featuredImagePath && (
         <figure className="mb-12">
           <img
             src={imageUrl(data.featuredImagePath)}
-            alt={data.title}
+            alt={displayTitle}
             className="max-h-[560px] w-full rounded-3xl object-cover shadow-soft border border-black/[.08] dark:border-white/[.08]"
           />
         </figure>
       )}
 
-      {/* Content Area: Editorial Article Reading Layout */}
-      <div className="mx-auto max-w-3xl">
-        {data.excerpt && (
-          <div className="editorial-pullquote mb-10">
-            &ldquo;{data.excerpt}&rdquo;
+      {/* Content Area: Editorial Article Reading Layout with TOC */}
+      <div className="relative mb-12">
+        {/* Collapsible Table of Contents for Mobile & Tablet (< xl) */}
+        {headings.length >= 2 && (
+          <div className="mx-auto max-w-3xl xl:hidden mb-8">
+            <TableOfContents items={headings} activeId={activeHeadingId} layout="collapsible" />
           </div>
         )}
 
-        {/* Article Reading Content with Drop-Cap Styling */}
-        <div className="editorial-article reading-content editorial-dropcap drop-cap">
-          {data.content}
-        </div>
+        <div className={headings.length >= 2 ? "xl:grid xl:grid-cols-[1fr_260px] xl:gap-12 xl:items-start" : ""}>
+          <div className="mx-auto max-w-3xl xl:mx-0 xl:max-w-none min-w-0" ref={contentRef}>
+            {displayExcerpt && (
+              <div className="editorial-pullquote mb-10 border-l-4 border-moss dark:border-primary pl-5 py-2 font-display text-xl italic leading-relaxed text-ink/90">
+                &ldquo;{displayExcerpt}&rdquo;
+              </div>
+            )}
 
-        {/* Image Gallery */}
-        {data.images.length > 0 && (
-          <div className="my-12 grid gap-5 sm:grid-cols-2">
-            {data.images.map((image) => (
-              <figure key={image.id} className="overflow-hidden rounded-2xl border border-black/[.08] dark:border-white/[.08] bg-surface shadow-card">
-                <img src={imageUrl(image.path)} alt={image.caption ?? ""} className="aspect-video w-full object-cover" />
-                {image.caption && (
-                  <figcaption className="px-4 py-3 text-center text-xs text-muted font-medium italic">{image.caption}</figcaption>
-                )}
-              </figure>
-            ))}
-          </div>
-        )}
+            {/* Article Reading Content with Formatted Headings and Drop-Cap */}
+            <ArticleContent content={displayContent} activeSpeechDomId={activeSpeechDomId} />
 
-        {/* Tags Bar */}
-        {data.tags.length > 0 && (
-          <div className="mt-10 flex flex-wrap items-center gap-2 border-t border-black/[.08] dark:border-white/[.08] pt-6">
-            <span className="text-xs font-bold uppercase tracking-wider text-muted mr-1">Tags:</span>
-            {data.tags.map((tag) => (
+            {data.images && data.images.length > 0 && (
+              <div className="my-10 grid gap-4 sm:grid-cols-2">
+                {data.images.map((image) => (
+                  <figure key={image.id} className="overflow-hidden rounded-2xl border border-black/[.08] dark:border-white/[.08] bg-surface shadow-card">
+                    <img src={imageUrl(image.path)} alt={image.caption ?? ""} className="aspect-video w-full object-cover" />
+                    {image.caption && (
+                      <figcaption className="px-4 py-3 text-center text-xs text-muted">{image.caption}</figcaption>
+                    )}
+                  </figure>
+                ))}
+              </div>
+            )}
+
+            {/* Tags */}
+            {data.tags && data.tags.length > 0 && (
+              <div className="mt-8 flex flex-wrap items-center gap-2">
+                {data.tags.map((tag) => (
+                  <Link
+                    key={tag.id}
+                    to={`/tag/${tag.slug}`}
+                    className="rounded-full border border-black/10 dark:border-white/10 bg-surface px-3.5 py-1.5 text-xs font-semibold text-muted shadow-sm transition hover:border-moss/40 hover:bg-paper hover:text-ink"
+                  >
+                    #{tag.name}
+                  </Link>
+                ))}
+              </div>
+            )}
+
+            {/* Author Profile Card */}
+            <Card className="my-10 flex flex-col gap-5 sm:flex-row sm:items-center sm:gap-6">
               <Link
-                key={tag.id}
-                to={`/tag/${tag.slug}`}
-                className="rounded-full border border-black/10 dark:border-white/10 bg-surface px-3.5 py-1.5 text-xs font-semibold text-muted shadow-sm transition hover:border-moss/40 hover:bg-paper hover:text-ink"
+                to={`/author/${encodeURIComponent(data.author)}`}
+                className="grid size-16 shrink-0 place-items-center overflow-hidden rounded-full bg-accent/30 font-bold text-moss dark:text-primary shadow-soft hover:opacity-90 transition-opacity"
               >
-                #{tag.name}
+                {data.authorProfileImagePath ? (
+                  <img src={imageUrl(data.authorProfileImagePath)} alt={data.author} className="size-full object-cover" />
+                ) : (
+                  <span className="text-xl">{data.author.slice(0, 1).toUpperCase()}</span>
+                )}
               </Link>
-            ))}
-          </div>
-        )}
-
-        {/* Author Profile Card */}
-        <Card className="my-10 flex flex-col gap-5 sm:flex-row sm:items-center sm:gap-6 p-7 sm:p-8">
-          <div className="grid size-16 shrink-0 place-items-center overflow-hidden rounded-full bg-accent/30 font-bold text-moss dark:text-primary shadow-soft">
-            {data.authorProfileImagePath ? (
-              <img src={imageUrl(data.authorProfileImagePath)} alt={data.author} className="size-full object-cover" />
-            ) : (
-              <span className="text-2xl">{data.author.slice(0, 1).toUpperCase()}</span>
-            )}
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <p className="text-xs font-bold uppercase tracking-widest text-moss dark:text-primary">Contributing Writer</p>
-            </div>
-            <h3 className="mt-0.5 font-display text-2xl font-bold text-ink">{data.author}</h3>
-            <p className="mt-1.5 text-sm leading-relaxed text-muted">
-              {data.authorBio || "Author and contributor sharing thoughtful perspectives, essays, and stories on Fieldnotes."}
-            </p>
-          </div>
-        </Card>
-
-        {/* Appreciation & Social Sharing Card */}
-        <Card className="my-10 p-7 sm:p-8">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <p className="font-display text-2xl font-bold text-ink">Enjoyed this perspective?</p>
-              <p className="text-xs text-muted mt-1">
-                {likeCount} {likeCount === 1 ? "reader has appreciated" : "readers have appreciated"} this article
-              </p>
-            </div>
-            <Button variant={liked ? "primary" : "secondary"} onClick={likePost} className="shadow-sm uppercase tracking-wider text-xs">
-              <Heart size={16} fill={liked ? "currentColor" : "none"} className={liked ? "text-white dark:text-[#171B19]" : "text-red-500"} />
-              {liked ? "Liked" : "Like this story"}
-            </Button>
-          </div>
-
-          {/* Social Sharing Section */}
-          <div className="mt-6 border-t border-black/[.08] dark:border-white/[.08] pt-5">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-muted">
-                <Share2 size={15} className="text-moss dark:text-primary" />
-                <span>Share this dispatch</span>
+              <div>
+                <p className="text-xs font-bold uppercase tracking-widest text-moss dark:text-primary">About the Author</p>
+                <h3 className="mt-0.5 font-display text-xl font-bold text-ink">
+                  <Link to={`/author/${encodeURIComponent(data.author)}`} className="hover:underline">
+                    {data.author}
+                  </Link>
+                </h3>
+                <p className="mt-1 text-sm leading-relaxed text-muted">
+                  {data.authorBio || "Author and contributor sharing thoughtful perspectives on Fieldnotes."}
+                </p>
               </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <a
-                  href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(data.title)}&url=${encodeURIComponent(shareUrl)}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  aria-label="Share story on X / Twitter"
-                  className="inline-flex items-center gap-1.5 rounded-full border border-black/10 dark:border-white/10 bg-surface px-3.5 py-1.5 text-xs font-semibold text-ink shadow-sm transition hover:border-[#1DA1F2] hover:text-[#1DA1F2] hover:bg-[#1DA1F2]/5"
-                >
-                  <Twitter size={14} className="text-[#1DA1F2]" />
-                  <span>X / Twitter</span>
-                </a>
-                <a
-                  href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareUrl)}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  aria-label="Share story on Facebook"
-                  className="inline-flex items-center gap-1.5 rounded-full border border-black/10 dark:border-white/10 bg-surface px-3.5 py-1.5 text-xs font-semibold text-ink shadow-sm transition hover:border-[#1877F2] hover:text-[#1877F2] hover:bg-[#1877F2]/5"
-                >
-                  <Facebook size={14} className="text-[#1877F2]" />
-                  <span>Facebook</span>
-                </a>
-                <a
-                  href={`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(shareUrl)}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  aria-label="Share story on LinkedIn"
-                  className="inline-flex items-center gap-1.5 rounded-full border border-black/10 dark:border-white/10 bg-surface px-3.5 py-1.5 text-xs font-semibold text-ink shadow-sm transition hover:border-[#0A66C2] hover:text-[#0A66C2] hover:bg-[#0A66C2]/5"
-                >
-                  <Linkedin size={14} className="text-[#0A66C2]" />
-                  <span>LinkedIn</span>
-                </a>
-                <button
-                  type="button"
-                  onClick={handleCopyLink}
-                  aria-label="Copy story link to clipboard"
-                  className={`inline-flex items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-xs font-semibold shadow-sm transition ${
-                    copied
-                      ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-200"
-                      : "border-black/10 dark:border-white/10 bg-paper text-ink hover:border-moss hover:bg-moss hover:text-white"
-                  }`}
-                >
-                  {copied ? (
-                    <>
-                      <Check size={14} className="text-emerald-600 dark:text-emerald-400" />
-                      <span>Link Copied!</span>
-                    </>
-                  ) : (
-                    <>
-                      <Copy size={14} />
-                      <span>Copy Link</span>
-                    </>
-                  )}
-                </button>
+            </Card>
+
+            {/* Appreciation & Social Sharing Card */}
+            <Card className="my-10">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="font-display text-xl font-bold text-ink">Enjoyed this perspective?</p>
+                  <p className="text-xs text-muted mt-0.5">
+                    {likeCount} {likeCount === 1 ? "reader appreciated" : "readers appreciated"} this article
+                  </p>
+                </div>
+                <Button variant={liked ? "primary" : "secondary"} onClick={likePost} className="shadow-sm">
+                  <Heart size={16} fill={liked ? "currentColor" : "none"} className={liked ? "text-white dark:text-[#171B19]" : "text-red-500"} />
+                  {liked ? "Liked" : "Like this story"}
+                </Button>
               </div>
-            </div>
-            {copied && (
-              <p className="mt-2 text-right text-xs font-medium text-emerald-700 dark:text-emerald-400">
-                Article URL copied to clipboard!
-              </p>
+
+              {/* Social Sharing Section */}
+              <div className="mt-6 border-t border-black/[.08] dark:border-white/[.08] pt-5">
+                <div className="flex flex-col gap-3.5 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-muted">
+                    <Share2 size={15} className="text-moss dark:text-primary" />
+                    <span>Share this dispatch</span>
+                  </div>
+                  <SocialShare
+                    title={data.title}
+                    url={`/blogs/${data.slug}`}
+                    excerpt={data.seoDescription ?? data.excerpt}
+                  />
+                </div>
+              </div>
+            </Card>
+
+            {/* Previous / Next Editorial Navigator (Phase 3) */}
+            {data.relatedPosts && data.relatedPosts.length > 0 && (
+              <nav aria-label="Story navigation" className="my-10 grid gap-4 sm:grid-cols-2">
+                {data.relatedPosts[0] && (
+                  <Link
+                    to={`/blogs/${data.relatedPosts[0].slug}`}
+                    className="group flex flex-col justify-between rounded-3xl border border-black/[.08] dark:border-white/[.08] bg-surface p-6 shadow-card hover:border-moss/40 hover:shadow-soft transition-all"
+                  >
+                    <div>
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-muted flex items-center gap-1.5">
+                        <ArrowLeft size={12} className="group-hover:-translate-x-1 transition-transform" /> Previous Story
+                      </span>
+                      <p className="mt-2.5 font-display text-lg font-bold text-ink line-clamp-2 group-hover:text-moss dark:group-hover:text-primary transition-colors">
+                        {data.relatedPosts[0].title}
+                      </p>
+                    </div>
+                    <div className="mt-4 pt-3 border-t border-black/[.06] dark:border-white/[.08] flex items-center justify-between text-xs text-muted">
+                      <span>By {data.relatedPosts[0].author}</span>
+                      <span className="font-semibold text-moss dark:text-primary uppercase tracking-wider text-[11px]">Read story</span>
+                    </div>
+                  </Link>
+                )}
+                {data.relatedPosts.length > 1 && data.relatedPosts[1] && (
+                  <Link
+                    to={`/blogs/${data.relatedPosts[1].slug}`}
+                    className="group flex flex-col justify-between rounded-3xl border border-black/[.08] dark:border-white/[.08] bg-surface p-6 shadow-card hover:border-moss/40 hover:shadow-soft transition-all"
+                  >
+                    <div>
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-muted flex items-center justify-end gap-1.5">
+                        Next Story <ArrowRight size={12} className="group-hover:translate-x-1 transition-transform" />
+                      </span>
+                      <p className="mt-2.5 font-display text-lg font-bold text-ink line-clamp-2 text-right group-hover:text-moss dark:group-hover:text-primary transition-colors">
+                        {data.relatedPosts[1].title}
+                      </p>
+                    </div>
+                    <div className="mt-4 pt-3 border-t border-black/[.06] dark:border-white/[.08] flex items-center justify-between text-xs text-muted">
+                      <span className="font-semibold text-moss dark:text-primary uppercase tracking-wider text-[11px]">Read story</span>
+                      <span>By {data.relatedPosts[1].author}</span>
+                    </div>
+                  </Link>
+                )}
+              </nav>
             )}
-          </div>
-        </Card>
 
-        {message && (
-          <div className="mb-6">
-            <Notice variant="success">{message}</Notice>
-          </div>
-        )}
-        {actionError && (
-          <div className="mb-6">
-            <Notice>{actionError}</Notice>
-          </div>
-        )}
+            {message && (
+              <div className="mb-6">
+                <Notice variant="success">{message}</Notice>
+              </div>
+            )}
+            {actionError && (
+              <div className="mb-6">
+                <Notice>{actionError}</Notice>
+              </div>
+            )}
 
-        {/* Community Discussion & Letters Section */}
-        <section className="mt-14 space-y-8 border-t-2 border-black/10 dark:border-white/10 pt-10">
+        {/* Community Comments Section */}
+        <section className="mt-12 space-y-8 border-t border-black/[.08] dark:border-white/[.08] pt-10">
           <div>
-            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.2em] text-moss dark:text-primary">
-              <MessageSquareText size={15} />
-              <span>Letters &amp; Discourse</span>
-            </div>
-            <h2 className="mt-1 font-display text-3xl font-bold text-ink">
-              {`Discussion (${data.comments.length})`}
-            </h2>
+            <p className="text-xs font-bold uppercase tracking-widest text-moss dark:text-primary">Community Exchange</p>
+            <h2 className="mt-1 font-display text-3xl font-bold text-ink">Discussion ({data.comments.length})</h2>
             <p className="mt-1 text-xs text-muted">Submissions are reviewed by our editors before appearing publicly.</p>
           </div>
 
@@ -1632,10 +2081,10 @@ export function BlogDetailPage() {
 
           {/* Comment Form */}
           {user ? (
-            <form onSubmit={submitComment} className="rounded-3xl border border-black/[.08] dark:border-white/[.08] bg-surface p-7 shadow-card sm:p-8">
+            <form onSubmit={submitComment} className="rounded-2xl border border-black/[.08] dark:border-white/[.08] bg-surface p-6 shadow-card sm:p-7">
               <h3 className="font-display text-2xl font-bold text-ink">Leave a comment</h3>
               <p className="mt-1 text-xs text-muted">
-                Commenting as <strong className="text-ink">{user.username}</strong>. Submissions are reviewed by editors.
+                Commenting as <strong className="text-ink">{user.username}</strong>. Submissions are reviewed.
               </p>
               <div className="mt-4">
                 <TextArea
@@ -1648,26 +2097,26 @@ export function BlogDetailPage() {
                   placeholder="Share your thoughts, experiences, or constructive feedback..."
                 />
               </div>
-              <Button className="mt-4 w-full sm:w-auto shadow-sm uppercase tracking-wider text-xs">
+              <Button className="mt-4 w-full sm:w-auto shadow-sm">
                 <Send size={15} /> Submit comment
               </Button>
             </form>
           ) : (
-            <Card className="p-8 text-center rounded-3xl">
-              <h3 className="font-display text-2xl font-bold text-ink">Join the conversation</h3>
+            <Card className="p-8 text-center">
+              <h3 className="font-display text-2xl font-bold text-ink">Join the discussion</h3>
               <p className="mx-auto mt-2 max-w-sm text-sm text-muted">
-                You must be logged in to leave a comment or appreciate this story.
+                You must be logged in to leave a comment or like this story.
               </p>
               <div className="mt-6 flex flex-col justify-center gap-3 sm:flex-row">
                 <Link
                   to="/login"
-                  className="rounded-full bg-moss dark:bg-primary px-6 py-2.5 text-xs font-bold uppercase tracking-wider text-white dark:text-[#171B19] shadow-sm transition hover:bg-ink dark:hover:bg-primary/90"
+                  className="rounded-full bg-moss dark:bg-primary px-6 py-2.5 text-sm font-bold text-white dark:text-[#171B19] shadow-sm transition hover:bg-ink dark:hover:bg-primary/90"
                 >
                   Log in to comment
                 </Link>
                 <Link
                   to="/register"
-                  className="rounded-full border border-black/10 dark:border-white/10 bg-surface px-6 py-2.5 text-xs font-bold uppercase tracking-wider text-ink shadow-sm transition hover:bg-paper"
+                  className="rounded-full border border-black/10 dark:border-white/10 bg-surface px-6 py-2.5 text-sm font-bold text-ink shadow-sm transition hover:bg-paper"
                 >
                   Create an account
                 </Link>
@@ -1675,11 +2124,20 @@ export function BlogDetailPage() {
             </Card>
           )}
         </section>
+          </div>
+
+          {/* Sticky Table of Contents for Desktop (xl:block) */}
+          {headings.length >= 2 && (
+            <aside className="sticky top-28 hidden xl:block">
+              <TableOfContents items={headings} activeId={activeHeadingId} layout="sidebar" />
+            </aside>
+          )}
+        </div>
       </div>
 
       {/* Related Stories Section */}
       {data.relatedPosts && data.relatedPosts.filter((p) => p.id !== data.id).length > 0 && (
-        <section className="mt-16 border-t-2 border-black/10 dark:border-white/10 pt-12 sm:mt-20 sm:pt-16">
+        <section className="mt-16 border-t border-black/[.08] dark:border-white/[.08] pt-12 sm:mt-20 sm:pt-16">
           <div className="mb-8 flex items-end justify-between border-b border-black/[.08] dark:border-white/[.08] pb-4">
             <div>
               <p className="text-xs font-bold uppercase tracking-widest text-moss dark:text-primary">Keep Reading</p>
@@ -1722,8 +2180,14 @@ export function BlogDetailPage() {
 export function NotFoundPage() {
   return (
     <section className="page-wrap py-28 text-center">
+      <Seo
+        title="404 — Page Not Found | Fieldnotes"
+        description="The page you requested could not be found on Fieldnotes Journal."
+        robotsIndex={false}
+        robotsFollow={false}
+      />
       <p className="font-display text-8xl font-bold text-moss dark:text-primary sm:text-9xl">404</p>
-      <h1 className="mt-4 font-display text-4xl font-bold text-ink sm:text-5xl">Story not found.</h1>
+      <h1 className="mt-4 font-display text-4xl font-bold text-ink sm:text-5xl">Page not found.</h1>
       <p className="mx-auto mt-4 max-w-md text-sm leading-relaxed text-muted">
         The link may have changed, the article was unpublished, or the page you are looking for has moved to another section.
       </p>
@@ -1970,14 +2434,23 @@ export function AboutPage() {
 export function AuthPage({ mode }: { mode: "login" | "register" }) {
   const { login, register, user } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const returnUrl = searchParams.get("returnUrl");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const isRegister = mode === "register";
 
+  function getSafeDestination(role?: string) {
+    if (returnUrl && returnUrl.startsWith("/") && !returnUrl.startsWith("//")) {
+      return returnUrl;
+    }
+    return role === "admin" ? "/admin" : "/dashboard";
+  }
+
   useEffect(() => {
-    if (user) navigate(user.role === "admin" ? "/admin" : "/dashboard", { replace: true });
-  }, [navigate, user]);
+    if (user) navigate(getSafeDestination(user.role), { replace: true });
+  }, [navigate, user, returnUrl]);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -1998,7 +2471,7 @@ export function AuthPage({ mode }: { mode: "login" | "register" }) {
       } else {
         signedInUser = await login(email, password);
       }
-      navigate(signedInUser.role === "admin" ? "/admin" : "/dashboard");
+      navigate(getSafeDestination(signedInUser.role));
     } catch (requestError) {
       setError(getErrorMessage(requestError));
     } finally {
@@ -2011,6 +2484,8 @@ export function AuthPage({ mode }: { mode: "login" | "register" }) {
       <Seo
         title={isRegister ? "Join Fieldnotes — Writer Registration" : "Sign In to Fieldnotes — Journal Portal"}
         description="Access your creator portal and member profile on Fieldnotes Digital Magazine."
+        robotsIndex={false}
+        robotsFollow={false}
       />
 
       <div className="rounded-3xl border border-black/[.08] dark:border-white/[.08] bg-surface p-8 shadow-card sm:p-10">
@@ -2150,7 +2625,12 @@ export function ForgotPasswordPage() {
 
   return (
     <div className="mx-auto max-w-md py-8">
-      <Seo title="Forgot Password — Fieldnotes" description="Reset your Fieldnotes account password." />
+      <Seo
+        title="Forgot Password — Fieldnotes"
+        description="Reset your Fieldnotes account password."
+        robotsIndex={false}
+        robotsFollow={false}
+      />
       <div className="rounded-3xl border border-black/[.08] dark:border-white/[.08] bg-surface p-8 shadow-card sm:p-10">
         <div className="text-center">
           <p className="text-xs font-bold uppercase tracking-widest text-moss dark:text-primary">Account Security</p>
@@ -2259,7 +2739,12 @@ export function ResetPasswordPage() {
 
   return (
     <div className="mx-auto max-w-md py-8">
-      <Seo title="Set New Password — Fieldnotes" description="Enter your new password." />
+      <Seo
+        title="Set New Password — Fieldnotes"
+        description="Enter your new password."
+        robotsIndex={false}
+        robotsFollow={false}
+      />
       <div className="rounded-3xl border border-black/[.08] dark:border-white/[.08] bg-surface p-8 shadow-card sm:p-10">
         <div className="text-center">
           <p className="text-xs font-bold uppercase tracking-widest text-moss dark:text-primary">Account Security</p>
@@ -2302,6 +2787,411 @@ export function ResetPasswordPage() {
             </Button>
           </div>
         </form>
+      </div>
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   AUTHOR PROFILE PAGE (/author/:username)
+   ══════════════════════════════════════════════════════════════════════ */
+
+export function AuthorProfilePage() {
+  const { username = "" } = useParams<{ username: string }>();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const pageParam = Math.max(1, Number(searchParams.get("page")) || 1);
+
+  const queryUrl = useMemo(() => {
+    return `/public/authors/${encodeURIComponent(username)}?page=${pageParam}&limit=9`;
+  }, [username, pageParam]);
+
+  const { data, loading, error } = useRequest<AuthorProfileData>(queryUrl);
+
+  if (loading) {
+    return <Loading label={`Loading profile for @${username}...`} />;
+  }
+
+  if (error || !data || !data.author) {
+    return (
+      <div className="py-12 sm:py-16">
+        <Seo
+          title="Author Not Found — Fieldnotes"
+          description="The requested author profile could not be found."
+          robotsIndex={false}
+          robotsFollow={false}
+        />
+        <EmptyState
+          title="Author Not Found"
+          action={
+            <Link to="/blogs" className="btn btn-primary inline-flex items-center gap-2">
+              <ArrowDown className="rotate-90" size={14} /> Browse All Stories
+            </Link>
+          }
+        >
+          We could not find an author profile for &ldquo;@{username}&rdquo;. The contributor may have changed their username or has not published any public dispatches.
+        </EmptyState>
+      </div>
+    );
+  }
+
+  const { author, posts = [], pagination } = data;
+  const publishedCount = Number(author.publishedStoryCount ?? pagination?.total ?? posts.length);
+  const formattedJoinedDate = author.createdAt
+    ? new Date(author.createdAt).toLocaleDateString(undefined, {
+        month: "long",
+        year: "numeric",
+      })
+    : null;
+
+  function handlePageChange(newPage: number) {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (newPage <= 1) {
+        next.delete("page");
+      } else {
+        next.set("page", String(newPage));
+      }
+      return next;
+    });
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  return (
+    <div className="space-y-12 sm:space-y-16">
+      <Seo
+        title={`${author.displayName || author.username} — Fieldnotes Author`}
+        description={
+          author.bio ||
+          `Explore articles, essays, and stories written by ${author.displayName || author.username} on Fieldnotes.`
+        }
+        canonicalUrl={`/author/${encodeURIComponent(author.username)}`}
+        image={author.profileImagePath ?? undefined}
+      />
+
+      {/* Navigation Breadcrumb / Back link */}
+      <div>
+        <Link
+          to="/blogs"
+          className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-moss dark:text-primary hover:underline"
+        >
+          <ArrowDown className="rotate-90" size={14} /> Back to all stories
+        </Link>
+      </div>
+
+      {/* Author Profile Header Hero */}
+      <header className="rounded-3xl border border-black/[.08] dark:border-white/[.08] bg-surface p-7 sm:p-10 shadow-card transition-all">
+        <div className="flex flex-col gap-6 sm:flex-row sm:items-start sm:gap-8">
+          {/* Avatar Portrait */}
+          <div className="relative grid size-24 sm:size-28 shrink-0 place-items-center overflow-hidden rounded-full border-2 border-moss/20 dark:border-primary/20 bg-moss/10 dark:bg-primary/20 font-bold text-moss dark:text-primary shadow-soft">
+            {author.profileImagePath ? (
+              <img
+                src={imageUrl(author.profileImagePath)}
+                alt={author.displayName || author.username}
+                className="size-full object-cover"
+              />
+            ) : (
+              <span className="text-3xl font-display uppercase">
+                {(author.displayName || author.username).slice(0, 1)}
+              </span>
+            )}
+          </div>
+
+          {/* Profile Meta & Bio */}
+          <div className="flex-1 min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="rounded-full border border-black/10 dark:border-white/10 bg-accent/30 dark:bg-accent/20 px-3 py-0.5 text-xs font-bold uppercase tracking-wider text-moss dark:text-primary">
+                Contributing Writer
+              </span>
+              <span className="text-xs text-muted font-medium">@{author.username}</span>
+            </div>
+
+            <h1 className="mt-2 font-display text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight text-ink">
+              {author.displayName || author.username}
+            </h1>
+
+            <p className="mt-3 text-sm sm:text-base leading-relaxed text-muted max-w-2xl">
+              {author.bio ||
+                "Author and contributor sharing thoughtful perspectives, essays, and stories on Fieldnotes."}
+            </p>
+
+            <div className="mt-6 flex flex-wrap items-center gap-4 text-xs font-semibold text-muted border-t border-black/[.06] dark:border-white/[.06] pt-4">
+              <span className="inline-flex items-center gap-1.5 text-ink">
+                <span className="font-bold text-moss dark:text-primary">{publishedCount}</span>
+                <span>{publishedCount === 1 ? "Published Story" : "Published Stories"}</span>
+              </span>
+              {formattedJoinedDate && (
+                <>
+                  <span>·</span>
+                  <span className="inline-flex items-center gap-1 text-muted">
+                    <span>Contributing since {formattedJoinedDate}</span>
+                  </span>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      </header>
+
+      {/* Published Stories Section */}
+      <section className="space-y-8">
+        <div className="flex flex-col sm:flex-row sm:items-end justify-between border-b border-black/[.08] dark:border-white/[.08] pb-4 gap-2">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-widest text-moss dark:text-primary">
+              Publications Library
+            </p>
+            <h2 className="mt-1 font-display text-2xl sm:text-3xl font-bold text-ink">
+              Stories by {author.displayName || author.username}
+            </h2>
+          </div>
+          <span className="text-xs font-semibold text-muted">
+            {publishedCount} {publishedCount === 1 ? "article" : "articles"} in total
+          </span>
+        </div>
+
+        {posts.length === 0 ? (
+          <EmptyState
+            title="No published stories yet"
+            action={
+              <Link to="/blogs" className="btn btn-secondary inline-flex items-center gap-2">
+                Explore Other Stories
+              </Link>
+            }
+          >
+            @{author.username} has not published any public stories yet. Check back soon or explore stories from other writers.
+          </EmptyState>
+        ) : (
+          <>
+            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+              {posts.map((post) => (
+                <PostCard key={post.id} post={post} />
+              ))}
+            </div>
+
+            {pagination && (pagination.totalPages > 1 || pagination.total > (pagination.limit || 9)) && (
+              <Pagination
+                page={pagination.page || pageParam}
+                limit={pagination.limit || 9}
+                total={pagination.total || publishedCount}
+                onChange={handlePageChange}
+              />
+            )}
+          </>
+        )}
+      </section>
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   NEWSLETTER DOUBLE OPT-IN VERIFICATION PAGE (Phase 2C)
+   ══════════════════════════════════════════════════════════════════════ */
+
+export function NewsletterVerifyPage() {
+  const [searchParams] = useSearchParams();
+  const token = searchParams.get("token") || "";
+  const [loading, setLoading] = useState(true);
+  const [success, setSuccess] = useState(false);
+  const [message, setMessage] = useState("");
+  const [subscriberEmail, setSubscriberEmail] = useState("");
+
+  useEffect(() => {
+    if (!token) {
+      setLoading(false);
+      setSuccess(false);
+      setMessage("No verification token provided. Please check the link in your email.");
+      return;
+    }
+
+    let isMounted = true;
+    (async () => {
+      try {
+        const response = await api.get<{
+          message: string;
+          status: string;
+          email?: string;
+        }>(`/public/newsletter/verify?token=${encodeURIComponent(token)}`);
+
+        if (isMounted) {
+          setSuccess(true);
+          setMessage(response.data?.message || "Your subscription has been confirmed! Welcome to Fieldnotes Journal.");
+          setSubscriberEmail(response.data?.email || "");
+        }
+      } catch (err: any) {
+        if (isMounted) {
+          setSuccess(false);
+          setMessage(err?.response?.data?.error?.message || "Invalid or expired verification link. Please subscribe again.");
+        }
+      } finally {
+        if (isMounted) setLoading(false);
+      }
+    })();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [token]);
+
+  return (
+    <div className="min-h-[50vh] flex items-center justify-center py-12 px-4">
+      <Seo
+        title="Newsletter Verification — Fieldnotes"
+        robotsIndex={false}
+        robotsFollow={false}
+      />
+      <div className="w-full max-w-md rounded-3xl border border-black/[.08] dark:border-white/[.08] bg-surface p-8 shadow-card text-center">
+        {loading ? (
+          <div className="py-8">
+            <Loader2 size={36} className="animate-spin text-moss dark:text-primary mx-auto" />
+            <p className="mt-4 font-semibold text-ink text-sm">Verifying your subscription...</p>
+          </div>
+        ) : success ? (
+          <div className="py-4">
+            <div className="grid size-14 place-items-center rounded-2xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 mx-auto">
+              <CheckCircle2 size={32} />
+            </div>
+            <h1 className="mt-5 font-display text-2xl font-bold text-ink">Subscription Confirmed</h1>
+            <p className="mt-2 text-sm text-muted leading-relaxed">{message}</p>
+            {subscriberEmail && (
+              <p className="mt-2 inline-block rounded-full bg-paper px-3 py-1 text-xs font-mono text-muted">
+                {subscriberEmail}
+              </p>
+            )}
+            <div className="mt-8 flex flex-col gap-3">
+              <Link
+                to="/"
+                className="w-full inline-flex items-center justify-center gap-2 rounded-2xl bg-moss dark:bg-primary py-3 text-sm font-bold text-white dark:text-[#171B19] shadow-sm hover:opacity-90 transition-all"
+              >
+                <span>Return to Homepage</span>
+                <ArrowRight size={15} />
+              </Link>
+              <Link
+                to="/blogs"
+                className="w-full inline-flex items-center justify-center gap-2 rounded-2xl border border-black/10 dark:border-white/10 py-3 text-sm font-bold text-ink hover:bg-black/5 dark:hover:bg-white/5 transition-all"
+              >
+                <span>Explore Stories</span>
+              </Link>
+            </div>
+          </div>
+        ) : (
+          <div className="py-4">
+            <div className="grid size-14 place-items-center rounded-2xl bg-red-500/10 text-red-600 dark:text-red-400 mx-auto">
+              <AlertCircle size={32} />
+            </div>
+            <h1 className="mt-5 font-display text-2xl font-bold text-ink">Verification Failed</h1>
+            <p className="mt-2 text-sm text-muted leading-relaxed">{message}</p>
+            <div className="mt-8 flex flex-col gap-3">
+              <Link
+                to="/"
+                className="w-full inline-flex items-center justify-center gap-2 rounded-2xl bg-moss dark:bg-primary py-3 text-sm font-bold text-white dark:text-[#171B19] shadow-sm hover:opacity-90 transition-all"
+              >
+                <span>Go to Homepage</span>
+                <ArrowRight size={15} />
+              </Link>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   NEWSLETTER UNSUBSCRIBE PAGE (Phase 2C)
+   ══════════════════════════════════════════════════════════════════════ */
+
+export function NewsletterUnsubscribePage() {
+  const [searchParams] = useSearchParams();
+  const token = searchParams.get("token") || "";
+  const [loading, setLoading] = useState(true);
+  const [success, setSuccess] = useState(false);
+  const [message, setMessage] = useState("");
+
+  useEffect(() => {
+    if (!token) {
+      setLoading(false);
+      setSuccess(false);
+      setMessage("No unsubscribe token provided. Please check the link from your email.");
+      return;
+    }
+
+    let isMounted = true;
+    (async () => {
+      try {
+        const response = await api.get<{
+          message: string;
+          status: string;
+        }>(`/public/newsletter/unsubscribe?token=${encodeURIComponent(token)}`);
+
+        if (isMounted) {
+          setSuccess(true);
+          setMessage(response.data?.message || "You have been successfully unsubscribed from Fieldnotes Journal.");
+        }
+      } catch (err: any) {
+        if (isMounted) {
+          setSuccess(false);
+          setMessage(err?.response?.data?.error?.message || "Invalid or expired unsubscribe link.");
+        }
+      } finally {
+        if (isMounted) setLoading(false);
+      }
+    })();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [token]);
+
+  return (
+    <div className="min-h-[50vh] flex items-center justify-center py-12 px-4">
+      <Seo
+        title="Newsletter Verification — Fieldnotes"
+        robotsIndex={false}
+        robotsFollow={false}
+      />
+      <div className="w-full max-w-md rounded-3xl border border-black/[.08] dark:border-white/[.08] bg-surface p-8 shadow-card text-center">
+        {loading ? (
+          <div className="py-8">
+            <Loader2 size={36} className="animate-spin text-moss dark:text-primary mx-auto" />
+            <p className="mt-4 font-semibold text-ink text-sm">Processing unsubscribe request...</p>
+          </div>
+        ) : success ? (
+          <div className="py-4">
+            <div className="grid size-14 place-items-center rounded-2xl bg-accent/30 dark:bg-accent/20 text-moss dark:text-primary mx-auto">
+              <MailCheck size={32} />
+            </div>
+            <h1 className="mt-5 font-display text-2xl font-bold text-ink">Unsubscribed</h1>
+            <p className="mt-2 text-sm text-muted leading-relaxed">{message}</p>
+            <p className="mt-3 text-xs text-muted">
+              We're sorry to see you go. You can re-subscribe anytime from our homepage.
+            </p>
+            <div className="mt-8">
+              <Link
+                to="/"
+                className="w-full inline-flex items-center justify-center gap-2 rounded-2xl bg-moss dark:bg-primary py-3 text-sm font-bold text-white dark:text-[#171B19] shadow-sm hover:opacity-90 transition-all"
+              >
+                <span>Return to Fieldnotes Journal</span>
+                <ArrowRight size={15} />
+              </Link>
+            </div>
+          </div>
+        ) : (
+          <div className="py-4">
+            <div className="grid size-14 place-items-center rounded-2xl bg-red-500/10 text-red-600 dark:text-red-400 mx-auto">
+              <AlertCircle size={32} />
+            </div>
+            <h1 className="mt-5 font-display text-2xl font-bold text-ink">Unsubscribe Request Failed</h1>
+            <p className="mt-2 text-sm text-muted leading-relaxed">{message}</p>
+            <div className="mt-8">
+              <Link
+                to="/"
+                className="w-full inline-flex items-center justify-center gap-2 rounded-2xl bg-moss dark:bg-primary py-3 text-sm font-bold text-white dark:text-[#171B19] shadow-sm hover:opacity-90 transition-all"
+              >
+                <span>Go to Homepage</span>
+                <ArrowRight size={15} />
+              </Link>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -1,28 +1,47 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import {
+  AlertCircle,
   AlertTriangle,
+  ArrowUpRight,
   BarChart3,
   Check,
+  CheckCircle2,
+  Clock,
+  Copy,
+  Download,
   ExternalLink,
   FilePlus2,
   FolderKanban,
   Heart,
   MessageSquareText,
   Pencil,
+  Plus,
+  RefreshCw,
   Search,
+  Sparkles,
   Tag as TagIcon,
   Trash2,
+  TrendingDown,
   Upload,
   Users,
+  UserX,
   X,
 } from "lucide-react";
 import { Link } from "react-router-dom";
-import { Button, DateRangeFilter, EmptyState, Field, Loading, Notice, PageHeading, Pagination, SelectField, TextArea } from "../components/UI";
+import { Button, DateRangeFilter, EmptyState, Field, Loading, Notice, PageHeading, Pagination, SelectField, TableSkeleton, TextArea } from "../components/UI";
 import { Seo } from "../components/Seo";
 import { api, getErrorMessage, imageUrl } from "../lib/api";
 import { confirmAction, confirmDestructive, showError, showSuccess, showToast } from "../lib/alerts";
-import type { PageResult, Taxonomy } from "../types";
+import type {
+  NewsletterStats,
+  NewsletterSubscriber,
+  PageResult,
+  SearchAnalyticsLogItem,
+  SearchAnalyticsOverview,
+  Taxonomy,
+  TopZeroResultKeyword,
+} from "../types";
 
 interface DashboardData {
   stats: {
@@ -72,6 +91,8 @@ interface AdminPost {
   title: string;
   slug: string;
   status: string;
+  isFeatured?: boolean;
+  featuredOrder?: number;
   authorUsername: string;
   authorId: string;
   category: string;
@@ -161,29 +182,80 @@ function StatusPill({ value }: { value: string }) {
   );
 }
 
+function AdminDashboardSkeleton() {
+  return (
+    <div className="space-y-10 animate-pulse">
+      <div className="space-y-2">
+        <div className="h-4 w-36 rounded bg-black/[.08] dark:bg-white/[.08]" />
+        <div className="h-10 w-72 rounded-xl bg-black/[.08] dark:bg-white/[.08]" />
+        <div className="h-4 w-96 max-w-full rounded bg-black/[.08] dark:bg-white/[.08]" />
+      </div>
+
+      <div className="space-y-4">
+        <div className="h-4 w-48 rounded bg-black/[.08] dark:bg-white/[.08]" />
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="h-32 rounded-2xl bg-surface dark:bg-surface-elevated border border-black/[.08] dark:border-white/[.08] p-5 space-y-3">
+              <div className="h-3 w-24 rounded bg-black/[.08] dark:bg-white/[.08]" />
+              <div className="h-8 w-20 rounded bg-black/[.08] dark:bg-white/[.08]" />
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="grid gap-6 xl:grid-cols-[1.4fr_.6fr]">
+        <div className="h-80 rounded-3xl bg-surface dark:bg-surface-elevated border border-black/[.08] dark:border-white/[.08]" />
+        <div className="h-80 rounded-3xl bg-[#12231b] border border-white/10" />
+      </div>
+
+      <div className="grid gap-6 xl:grid-cols-2">
+        <div className="h-72 rounded-3xl bg-surface dark:bg-surface-elevated border border-black/[.08] dark:border-white/[.08]" />
+        <div className="h-72 rounded-3xl bg-surface dark:bg-surface-elevated border border-black/[.08] dark:border-white/[.08]" />
+      </div>
+    </div>
+  );
+}
+
 function StatCard({
   label,
   value,
   note,
   icon: Icon,
+  variant = "default",
 }: {
   label: string;
   value: number;
   note?: string;
   icon: typeof BarChart3;
+  variant?: "default" | "success" | "warning" | "danger";
 }) {
+  const accentBorder =
+    variant === "success"
+      ? "border-l-emerald-500 dark:border-l-emerald-400"
+      : variant === "warning"
+      ? "border-l-amber-500 dark:border-l-amber-400"
+      : variant === "danger"
+      ? "border-l-rose-500 dark:border-l-rose-400"
+      : "border-l-moss dark:border-l-primary";
+
   return (
-    <div className="group relative rounded-2xl border border-black/[.08] dark:border-white/[.08] border-l-4 border-l-moss dark:border-l-primary bg-surface dark:bg-surface-elevated p-5 shadow-soft transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md">
-      <div className="flex items-start justify-between gap-2">
-        <p className="text-[11px] font-bold uppercase tracking-[.14em] text-muted font-sans">{label}</p>
-        <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-paper dark:bg-surface text-moss dark:text-primary border border-moss/10 dark:border-white/10 transition group-hover:bg-lime/30 dark:group-hover:bg-primary/20">
-          <Icon size={16} />
-        </span>
+    <div className={`group relative rounded-2xl border border-black/[.08] dark:border-white/[.08] border-l-4 ${accentBorder} bg-surface dark:bg-surface-elevated p-5 shadow-soft transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md flex flex-col justify-between`}>
+      <div>
+        <div className="flex items-start justify-between gap-2">
+          <p className="text-[11px] font-bold uppercase tracking-[.14em] text-muted font-sans">{label}</p>
+          <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-paper dark:bg-surface text-moss dark:text-primary border border-moss/10 dark:border-white/10 transition group-hover:bg-lime/30 dark:group-hover:bg-primary/20">
+            <Icon size={16} />
+          </span>
+        </div>
+        <p className="mt-3 font-display text-4xl font-bold tracking-tight text-ink">
+          {Number(value ?? 0).toLocaleString()}
+        </p>
       </div>
-      <p className="mt-3 font-display text-4xl font-normal tracking-tight text-ink">
-        {Number(value ?? 0).toLocaleString()}
-      </p>
-      {note && <p className="mt-2 text-xs leading-relaxed text-muted font-sans">{note}</p>}
+      {note && (
+        <div className="mt-3 flex items-center justify-between text-xs text-muted font-sans pt-2 border-t border-black/[.04] dark:border-white/[.04]">
+          <span className="truncate">{note}</span>
+        </div>
+      )}
     </div>
   );
 }
@@ -191,20 +263,26 @@ function StatCard({
 export function AdminDashboardPage() {
   const { data, loading, error } = useAdminData<DashboardData>("/admin/dashboard");
 
-  if (loading) return <Loading />;
+  if (loading) return <AdminDashboardSkeleton />;
   if (error || !data) return <Notice>{error ?? "Dashboard data is unavailable."}</Notice>;
 
-  const statsList = [
-    { label: "Total Users", value: data.stats.totalUsers, note: "All registered accounts", icon: Users },
-    { label: "Total Posts", value: data.stats.totalPosts, note: "Drafts, pending & live", icon: BarChart3 },
-    { label: "Published Posts", value: data.stats.publishedPosts, note: "Live on the public journal", icon: Check },
-    { label: "Pending Posts", value: data.stats.pendingPosts, note: "Awaiting editorial review", icon: AlertTriangle },
-    { label: "Rejected Posts", value: data.stats.rejectedPosts, note: "Returned to contributors", icon: X },
-    { label: "Total Categories", value: data.stats.totalCategories, note: "Editorial taxonomy classification", icon: FolderKanban },
-    { label: "Total Tags", value: data.stats.totalTags, note: "Topic labels & indexing", icon: TagIcon },
-    { label: "Total Comments", value: data.stats.totalComments, note: "Reader contributions", icon: MessageSquareText },
-    { label: "Pending Comments", value: data.stats.pendingComments, note: "Awaiting approval queue", icon: AlertTriangle },
-    { label: "Total Likes", value: data.stats.totalLikes, note: "Community story appreciations", icon: Heart },
+  const audienceStats = [
+    { label: "Total Readers", value: data.stats.totalUsers, note: "Registered member accounts", icon: Users, variant: "default" as const },
+    { label: "Total Articles", value: data.stats.totalPosts, note: "Drafts, pending & live", icon: BarChart3, variant: "default" as const },
+    { label: "Published Stories", value: data.stats.publishedPosts, note: "Active on public journal", icon: Check, variant: "success" as const },
+    { label: "Reader Appreciations", value: data.stats.totalLikes, note: "Total community likes", icon: Heart, variant: "success" as const },
+  ];
+
+  const governanceStats = [
+    { label: "Pending Stories", value: data.stats.pendingPosts, note: "Awaiting editorial review", icon: AlertTriangle, variant: data.stats.pendingPosts > 0 ? ("warning" as const) : ("default" as const) },
+    { label: "Returned Drafts", value: data.stats.rejectedPosts, note: "Revisions requested", icon: X, variant: data.stats.rejectedPosts > 0 ? ("danger" as const) : ("default" as const) },
+    { label: "Pending Comments", value: data.stats.pendingComments, note: "Reader moderation queue", icon: AlertTriangle, variant: data.stats.pendingComments > 0 ? ("warning" as const) : ("default" as const) },
+    { label: "Total Comments", value: data.stats.totalComments, note: "Community discourse", icon: MessageSquareText, variant: "default" as const },
+  ];
+
+  const taxonomyStats = [
+    { label: "Topic Categories", value: data.stats.totalCategories, note: "Journal sections & hubs", icon: FolderKanban, variant: "default" as const },
+    { label: "Topical Tags", value: data.stats.totalTags, note: "Cross-cutting labels", icon: TagIcon, variant: "default" as const },
   ];
 
   const chartData = data.monthlyPosts.map((item) => ({
@@ -216,18 +294,52 @@ export function AdminDashboardPage() {
 
   return (
     <>
-      <Seo title="Admin Dashboard — Fieldnotes Control Center" />
+      <Seo title="Admin Dashboard — Fieldnotes Control Center" robotsIndex={false} robotsFollow={false} />
       <PageHeading
         eyebrow="Editorial Control Center"
         title="Publication Overview"
         description="Live overview of readership, content lifecycle, pending editorial queues, and database metrics."
       />
 
-      {/* 10 Statistics Cards */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-        {statsList.map(({ label, value, note, icon: Icon }) => (
-          <StatCard key={label} label={label} value={Number(value)} note={note} icon={Icon} />
-        ))}
+      {/* Semantic Group 1: Audience & Publication Lifecycle */}
+      <div className="space-y-6">
+        <div>
+          <div className="flex items-center gap-2 mb-3">
+            <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-moss dark:text-primary">Audience & Reach</span>
+            <div className="h-px flex-1 bg-black/[.06] dark:bg-white/[.06]" />
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {audienceStats.map((item) => (
+              <StatCard key={item.label} label={item.label} value={Number(item.value)} note={item.note} icon={item.icon} variant={item.variant} />
+            ))}
+          </div>
+        </div>
+
+        {/* Semantic Group 2: Editorial Governance & Queues */}
+        <div>
+          <div className="flex items-center gap-2 mb-3">
+            <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-amber-600 dark:text-amber-400">Governance & Queues</span>
+            <div className="h-px flex-1 bg-black/[.06] dark:bg-white/[.06]" />
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {governanceStats.map((item) => (
+              <StatCard key={item.label} label={item.label} value={Number(item.value)} note={item.note} icon={item.icon} variant={item.variant} />
+            ))}
+          </div>
+        </div>
+
+        {/* Semantic Group 3: Taxonomy & Discovery */}
+        <div>
+          <div className="flex items-center gap-2 mb-3">
+            <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted">Taxonomy & Indexing</span>
+            <div className="h-px flex-1 bg-black/[.06] dark:bg-white/[.06]" />
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-2">
+            {taxonomyStats.map((item) => (
+              <StatCard key={item.label} label={item.label} value={Number(item.value)} note={item.note} icon={item.icon} variant={item.variant} />
+            ))}
+          </div>
+        </div>
       </div>
 
       {/* Charts & Review Queues */}
@@ -524,18 +636,37 @@ export function AdminPostsPage() {
     }
   }
 
+  async function toggleFeatured(id: string, isFeatured: boolean) {
+    try {
+      await api.patch(`/admin/posts/${id}/featured`, { isFeatured });
+      refresh();
+      await showSuccess(
+        isFeatured ? "Story Featured" : "Removed from Featured",
+        isFeatured
+          ? "This story is now highlighted in the editorial Featured Stories section."
+          : "This story has been unfeatured from the homepage hero section."
+      );
+    } catch (requestError) {
+      const msg = getErrorMessage(requestError);
+      setActionError(msg);
+      await showError("Failed to Update Featured Status", msg);
+    }
+  }
+
   return (
     <>
-      <Seo title="Post Management — Admin Portal" />
+      <Seo title="Post Management — Admin Portal" robotsIndex={false} robotsFollow={false} />
       <PageHeading
         eyebrow="Editorial Operations"
         title="Post Management"
         description="Review incoming submissions, approve or return drafts, modify articles, and inspect reader reception."
         action={
-          <Link to="/admin/posts/new">
-            <Button>
-              <FilePlus2 size={17} /> Create Post
-            </Button>
+          <Link
+            to="/admin/posts/new"
+            className="inline-flex items-center justify-center gap-2 rounded-full bg-moss px-5 py-2.5 text-xs font-bold uppercase tracking-wider text-white shadow-sm transition hover:bg-ink dark:bg-primary dark:text-[#171B19] dark:hover:bg-primary/90"
+          >
+            <FilePlus2 size={17} />
+            <span>Create Post</span>
           </Link>
         }
       />
@@ -604,7 +735,7 @@ export function AdminPostsPage() {
       </div>
 
       {loading ? (
-        <Loading />
+        <TableSkeleton rows={6} cols={4} />
       ) : error ? (
         <Notice>{error}</Notice>
       ) : postsList.length ? (
@@ -622,6 +753,12 @@ export function AdminPostsPage() {
                         {post.category}
                       </span>
                       <StatusPill value={post.status} />
+                      {Boolean(post.isFeatured) && (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400 border border-amber-500/30">
+                          <Sparkles size={11} className="text-amber-500 fill-amber-500" />
+                          Featured Story
+                        </span>
+                      )}
                       <span className="text-[11px] text-muted font-sans">
                         {post.submittedAt
                           ? `Submitted ${new Date(post.submittedAt).toLocaleDateString()}`
@@ -650,6 +787,22 @@ export function AdminPostsPage() {
                   </div>
 
                   <div className="flex flex-wrap items-center gap-2 self-start lg:self-center">
+                    {post.status === "APPROVED" && (
+                      <button
+                        type="button"
+                        onClick={() => void toggleFeatured(post.id, !post.isFeatured)}
+                        className={`inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-semibold shadow-sm transition ${
+                          post.isFeatured
+                            ? "bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/40 hover:bg-amber-500/25"
+                            : "border border-black/10 dark:border-white/10 bg-surface dark:bg-surface-elevated text-muted hover:text-ink hover:bg-paper"
+                        }`}
+                        title={post.isFeatured ? "Remove from Featured Stories" : "Mark as Featured Story on Homepage"}
+                      >
+                        <Sparkles size={13} className={post.isFeatured ? "text-amber-500 fill-amber-500" : ""} />
+                        {post.isFeatured ? "Featured" : "Feature"}
+                      </button>
+                    )}
+
                     {post.status === "APPROVED" && (
                       <Link
                         to={`/blogs/${post.slug}`}
@@ -857,7 +1010,7 @@ export function AdminTaxonomyPage({ kind }: { kind: "categories" | "tags" }) {
 
   return (
     <>
-      <Seo title={`${isCategory ? "Category Management" : "Tag Management"} — Admin Portal`} />
+      <Seo title={`${isCategory ? "Category Management" : "Tag Management"} — Admin Portal`} robotsIndex={false} robotsFollow={false} />
       <PageHeading
         eyebrow="Editorial Taxonomy"
         title={isCategory ? "Category Management" : "Tag Management"}
@@ -987,11 +1140,11 @@ export function AdminTaxonomyPage({ kind }: { kind: "categories" | "tags" }) {
           </form>
 
           {loading ? (
-            <Loading />
+            <TableSkeleton rows={6} cols={4} />
           ) : error ? (
             <Notice>{error}</Notice>
           ) : taxonomyList.length ? (
-            <div className="overflow-hidden rounded-3xl border border-black/[.08] dark:border-white/[.08] bg-surface dark:bg-surface-elevated shadow-soft">
+            <div className="overflow-x-auto rounded-3xl border border-black/[.08] dark:border-white/[.08] bg-surface dark:bg-surface-elevated shadow-soft">
               <table className="w-full text-left text-sm">
                 <thead className="border-b border-black/[.08] dark:border-white/[.08] bg-paper dark:bg-background/60 text-[11px] font-bold uppercase tracking-wider text-muted">
                   <tr>
@@ -1123,7 +1276,7 @@ export function AdminCommentsPage() {
 
   return (
     <>
-      <Seo title="Comment Moderation — Admin Portal" />
+      <Seo title="Comment Moderation — Admin Portal" robotsIndex={false} robotsFollow={false} />
       <PageHeading
         eyebrow="Community Voice"
         title="Comment Management"
@@ -1172,7 +1325,7 @@ export function AdminCommentsPage() {
       )}
 
       {loading ? (
-        <Loading />
+        <TableSkeleton rows={6} cols={4} />
       ) : error ? (
         <Notice>{error}</Notice>
       ) : commentsList.length > 0 ? (
@@ -1352,7 +1505,7 @@ export function AdminUsersPage() {
 
   return (
     <>
-      <Seo title="User Management — Admin Portal" />
+      <Seo title="User Management — Admin Portal" robotsIndex={false} robotsFollow={false} />
       <PageHeading
         eyebrow="Community Governance"
         title="User Management"
@@ -1416,7 +1569,7 @@ export function AdminUsersPage() {
       </div>
 
       {loading ? (
-        <Loading />
+        <TableSkeleton rows={6} cols={4} />
       ) : error ? (
         <Notice>{error}</Notice>
       ) : usersList.length > 0 ? (
@@ -1931,7 +2084,7 @@ export function AdminSeoPage() {
 
   return (
     <>
-      <Seo title="SEO Management — Admin Portal" />
+      <Seo title="SEO Management — Admin Portal" robotsIndex={false} robotsFollow={false} />
       <PageHeading
         eyebrow="Search Optimization"
         title="SEO Management"
@@ -2026,6 +2179,7 @@ export function AdminSeoPage() {
                   <tr>
                     <th className="px-6 py-4">Entity</th>
                     <th className="px-6 py-4">Meta Title & Description</th>
+                    <th className="px-6 py-4">Status & Quality</th>
                     <th className="px-6 py-4">Canonical URL</th>
                     <th className="px-6 py-4">Robots</th>
                     <th className="px-6 py-4">Last Updated</th>
@@ -2086,6 +2240,26 @@ export function AdminSeoPage() {
                           ) : (
                             <p className="mt-1 text-[11px] text-muted/60">No meta description</p>
                           )}
+                        </td>
+
+                        {/* Status & Quality */}
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="flex flex-col gap-1">
+                            {record.title && record.description ? (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400">
+                                <CheckCircle2 size={12} /> Complete
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400">
+                                <AlertTriangle size={12} /> Incomplete
+                              </span>
+                            )}
+                            {!record.description && (
+                              <span className="rounded bg-amber-500/10 px-1.5 py-0.5 text-[9px] font-bold text-amber-700 dark:text-amber-300 w-fit">
+                                Missing Description
+                              </span>
+                            )}
+                          </div>
                         </td>
 
                         {/* Canonical URL */}
@@ -2424,7 +2598,7 @@ export function AdminContactsPage() {
 
   return (
     <>
-      <Seo title="Contact Inbox — Admin Portal" />
+      <Seo title="Contact Inbox — Admin Portal" robotsIndex={false} robotsFollow={false} />
       <PageHeading
         eyebrow="Reader Inquiries"
         title="Contact Inbox"
@@ -2454,7 +2628,7 @@ export function AdminContactsPage() {
       )}
 
       {loading ? (
-        <Loading />
+        <TableSkeleton rows={6} cols={4} />
       ) : error ? (
         <Notice>{error}</Notice>
       ) : contactsList.length > 0 ? (
@@ -2628,8 +2802,13 @@ export function AdminImagesPage() {
   const paginationData = (data as any)?.pagination;
   const [actionError, setActionError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [previewImage, setPreviewImage] = useState<ImageRecord | null>(null);
 
   async function handleUpload(file: File) {
+    if (file.size > 10 * 1024 * 1024) {
+      await showError("File Too Large", "Image size exceeds the 10 MB limit.");
+      return;
+    }
     setUploading(true);
     setActionError(null);
     try {
@@ -2649,6 +2828,17 @@ export function AdminImagesPage() {
     }
   }
 
+  async function copyImageUrl(image: ImageRecord) {
+    const fullUrl = imageUrl(image.path) || "";
+    const absoluteUrl = fullUrl.startsWith("http") ? fullUrl : `${window.location.origin}${fullUrl}`;
+    try {
+      await navigator.clipboard.writeText(absoluteUrl);
+      showToast({ title: "Asset URL copied to clipboard", icon: "success" });
+    } catch {
+      showToast({ title: "Copied URL: " + absoluteUrl, icon: "info" });
+    }
+  }
+
   async function remove(image: ImageRecord) {
     const confirmed = await confirmDestructive({
       title: "Delete Media Asset?",
@@ -2659,6 +2849,7 @@ export function AdminImagesPage() {
     try {
       await api.delete(`/admin/images/${image.id}`);
       refresh();
+      if (previewImage?.id === image.id) setPreviewImage(null);
       await showSuccess("Asset Deleted", `"${image.originalFileName}" has been removed.`);
     } catch (requestError) {
       const msg = getErrorMessage(requestError);
@@ -2669,27 +2860,30 @@ export function AdminImagesPage() {
 
   return (
     <>
-      <Seo title="Media Library — Admin Portal" />
+      <Seo title="Media Library — Admin Portal" robotsIndex={false} robotsFollow={false} />
       <PageHeading
         eyebrow="Asset Archive"
         title="Media Library"
         description="Inspect all uploaded image assets across story banners, editorial features, and member profiles."
         action={
-          <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl bg-moss px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-ink">
-            <Upload size={16} />
-            <span>{uploading ? "Uploading..." : "Upload media"}</span>
-            <input
-              type="file"
-              accept="image/jpeg,image/png,image/webp,image/gif,image/avif"
-              className="hidden"
-              disabled={uploading}
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) void handleUpload(file);
-                e.target.value = "";
-              }}
-            />
-          </label>
+          <div className="flex flex-col items-end gap-1">
+            <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl bg-moss px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-ink">
+              <Upload size={16} />
+              <span>{uploading ? "Uploading..." : "Upload media"}</span>
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/gif,image/avif"
+                className="hidden"
+                disabled={uploading}
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) void handleUpload(file);
+                  e.target.value = "";
+                }}
+              />
+            </label>
+            <span className="text-[11px] font-medium text-muted">Supports JPEG, PNG, WebP (Max 10MB)</span>
+          </div>
         }
       />
 
@@ -2700,17 +2894,18 @@ export function AdminImagesPage() {
       )}
 
       {loading ? (
-        <Loading />
+        <TableSkeleton rows={6} cols={4} />
       ) : error ? (
         <Notice>{error}</Notice>
       ) : imagesList.length > 0 ? (
         <>
-          {/* 4-Column Desktop Grid with Delete Button Overlay */}
+          {/* 4-Column Desktop Grid with Quick Action Overlays */}
           <div className="grid grid-cols-2 gap-5 sm:grid-cols-3 lg:grid-cols-4">
             {imagesList.map((image) => (
               <article
                 key={image.id}
-                className="group relative overflow-hidden rounded-2xl border border-black/[.08] dark:border-white/[.08] bg-surface dark:bg-surface-elevated shadow-soft transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md"
+                className="group relative overflow-hidden rounded-2xl border border-black/[.08] dark:border-white/[.08] bg-surface dark:bg-surface-elevated shadow-soft transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md cursor-pointer"
+                onClick={() => setPreviewImage(image)}
               >
                 <div className="relative aspect-square w-full overflow-hidden bg-paper dark:bg-background">
                   <img
@@ -2718,16 +2913,31 @@ export function AdminImagesPage() {
                     alt={image.originalFileName}
                     className="size-full object-cover transition duration-300 group-hover:scale-105"
                   />
-                  {/* Delete button overlay on hover */}
-                  <div className="absolute inset-0 flex items-start justify-end p-3 opacity-0 transition-opacity duration-200 group-hover:opacity-100 bg-gradient-to-b from-ink/60 via-transparent to-transparent">
+                  {/* Action button overlay on hover */}
+                  <div className="absolute inset-0 flex items-start justify-between p-3 opacity-0 transition-opacity duration-200 group-hover:opacity-100 bg-gradient-to-b from-ink/70 via-transparent to-transparent">
                     <button
                       type="button"
-                      onClick={() => void remove(image)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        void copyImageUrl(image);
+                      }}
+                      className="grid size-9 place-items-center rounded-full bg-surface/95 dark:bg-surface-elevated/95 text-ink shadow-md backdrop-blur-sm transition hover:bg-moss hover:text-white dark:hover:bg-primary dark:hover:text-[#171B19]"
+                      title="Copy public URL"
+                      aria-label="Copy public URL"
+                    >
+                      <Copy size={15} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        void remove(image);
+                      }}
                       className="grid size-9 place-items-center rounded-full bg-surface/95 dark:bg-surface-elevated/95 text-red-700 dark:text-red-400 shadow-md backdrop-blur-sm transition hover:bg-red-600 hover:text-white dark:hover:bg-red-600 dark:hover:text-white"
                       title="Delete image asset"
                       aria-label="Delete image asset"
                     >
-                      <Trash2 size={16} />
+                      <Trash2 size={15} />
                     </button>
                   </div>
                 </div>
@@ -2742,6 +2952,64 @@ export function AdminImagesPage() {
               </article>
             ))}
           </div>
+
+          {/* Lightbox / Asset Details Modal */}
+          {previewImage && (
+            <div
+              className="fixed inset-0 z-50 flex items-center justify-center bg-ink/70 backdrop-blur-sm p-4 animate-in fade-in duration-200"
+              onClick={() => setPreviewImage(null)}
+              role="dialog"
+              aria-modal="true"
+              aria-label="Image Asset Preview"
+            >
+              <div
+                className="relative max-w-2xl w-full rounded-3xl border border-black/[.08] dark:border-white/[.08] bg-surface dark:bg-surface-elevated p-6 shadow-2xl space-y-4"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="flex items-center justify-between border-b border-black/[.06] dark:border-white/[.06] pb-3">
+                  <div className="min-w-0 pr-4">
+                    <h3 className="font-display text-lg font-bold text-ink truncate">{previewImage.originalFileName}</h3>
+                    <p className="text-xs text-muted">Uploaded by {previewImage.uploadedBy} · {(previewImage.fileSize / 1024).toFixed(1)} KB</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setPreviewImage(null)}
+                    className="grid size-8 place-items-center rounded-full hover:bg-paper text-muted hover:text-ink transition"
+                    aria-label="Close Preview"
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
+
+                <div className="max-h-[60vh] overflow-hidden rounded-2xl bg-paper dark:bg-background flex items-center justify-center">
+                  <img
+                    src={imageUrl(previewImage.path)}
+                    alt={previewImage.originalFileName}
+                    className="max-h-[55vh] max-w-full object-contain"
+                  />
+                </div>
+
+                <div className="flex items-center justify-between pt-2">
+                  <div className="flex items-center gap-2">
+                    <Button variant="secondary" onClick={() => void copyImageUrl(previewImage)}>
+                      <Copy size={14} /> Copy URL
+                    </Button>
+                    <a
+                      href={imageUrl(previewImage.path)}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1.5 rounded-2xl border border-black/10 dark:border-white/10 px-4 py-2 text-xs font-bold text-ink hover:bg-paper transition"
+                    >
+                      <ExternalLink size={14} /> Open Original
+                    </a>
+                  </div>
+                  <Button variant="danger" onClick={() => void remove(previewImage)}>
+                    <Trash2 size={14} /> Delete Asset
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {(paginationData || data?.pagination) && (
             <Pagination
@@ -2793,7 +3061,7 @@ export function AdminSettingsPage() {
 
   return (
     <>
-      <Seo title="Site Settings — Admin Portal" />
+      <Seo title="Site Settings — Admin Portal" robotsIndex={false} robotsFollow={false} />
       <PageHeading
         eyebrow="Application Configuration"
         title="Site Settings"
@@ -2885,6 +3153,1151 @@ export function AdminSettingsPage() {
           )}
         </section>
       </div>
+    </>
+  );
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   NEWSLETTER MANAGEMENT (Phase 2C)
+   ══════════════════════════════════════════════════════════════════════ */
+
+export function AdminNewsletterPage() {
+  const [stats, setStats] = useState<NewsletterStats>({ total: 0, active: 0, pending: 0, unsubscribed: 0 });
+  const [statsLoading, setStatsLoading] = useState(true);
+  const [subscribers, setSubscribers] = useState<NewsletterSubscriber[]>([]);
+  const [pagination, setPagination] = useState({ page: 1, limit: 15, total: 0, totalPages: 1 });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState<"ALL" | "SUBSCRIBED" | "PENDING" | "UNSUBSCRIBED">("ALL");
+  const [search, setSearch] = useState("");
+  const [searchInput, setSearchInput] = useState("");
+  const [exporting, setExporting] = useState(false);
+
+  const fetchStats = async () => {
+    try {
+      setStatsLoading(true);
+      const res = await api.get<{ data: NewsletterStats }>("/admin/newsletter/stats");
+      if (res.data?.data) {
+        setStats(res.data.data);
+      }
+    } catch (err: any) {
+      console.error("Failed to load newsletter stats", err);
+    } finally {
+      setStatsLoading(false);
+    }
+  };
+
+  const fetchSubscribers = async (page = 1) => {
+    try {
+      setLoading(true);
+      setError(null);
+      const params = new URLSearchParams({
+        page: String(page),
+        limit: "15",
+        status: statusFilter,
+      });
+      if (search.trim()) {
+        params.set("search", search.trim());
+      }
+      const res = await api.get<{ data: NewsletterSubscriber[]; pagination: typeof pagination }>(
+        `/admin/newsletter/subscribers?${params.toString()}`
+      );
+      setSubscribers(res.data.data || []);
+      if (res.data.pagination) {
+        setPagination(res.data.pagination);
+      }
+    } catch (err: any) {
+      setError(getErrorMessage(err));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchStats();
+  }, []);
+
+  useEffect(() => {
+    fetchSubscribers(1);
+  }, [statusFilter, search]);
+
+  const handleSearchSubmit = (e: FormEvent) => {
+    e.preventDefault();
+    setSearch(searchInput);
+  };
+
+  const handleClearSearch = () => {
+    setSearchInput("");
+    setSearch("");
+  };
+
+  const handleDeleteSubscriber = async (sub: NewsletterSubscriber) => {
+    const confirmed = await confirmDestructive({
+      title: "Delete Subscriber",
+      text: `Remove ${sub.email} from subscriber records? This action cannot be undone.`,
+      confirmText: "Yes, Delete",
+    });
+    if (!confirmed) return;
+
+    try {
+      await api.delete(`/admin/newsletter/subscribers/${sub.id}`);
+      showToast({ title: "Subscriber removed", icon: "success" });
+      fetchStats();
+      fetchSubscribers(pagination.page);
+    } catch (err: any) {
+      showError("Delete Failed", err);
+    }
+  };
+
+  const handleExportCsv = async () => {
+    try {
+      setExporting(true);
+      const res = await api.get(`/admin/newsletter/export?status=${statusFilter}`, {
+        responseType: "blob",
+      });
+      const blob = new Blob([res.data], { type: "text/csv;charset=utf-8;" });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.setAttribute("download", `newsletter_subscribers_${statusFilter.toLowerCase()}_${new Date().toISOString().slice(0, 10)}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      showToast({ title: "CSV export downloaded", icon: "success" });
+    } catch (err: any) {
+      showError("Export Failed", "Failed to export subscribers CSV");
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  return (
+    <>
+      <Seo title="Newsletter Subscribers — Admin" robotsIndex={false} robotsFollow={false} />
+      <PageHeading
+        title="Newsletter Management"
+        description="Monitor newsletter audience metrics, verify subscription states, and manage subscriber records."
+        action={
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={handleExportCsv}
+            disabled={exporting || subscribers.length === 0}
+          >
+            <Download size={15} />
+            <span>{exporting ? "Exporting..." : "Export CSV"}</span>
+          </Button>
+        }
+      />
+
+      {/* 1. Overview Metric Cards */}
+      <div className="mt-8 grid grid-cols-2 gap-4 sm:grid-cols-4 lg:gap-6">
+        <div className="rounded-2xl border border-black/[.08] dark:border-white/[.08] bg-surface p-5 shadow-card">
+          <p className="text-xs font-bold uppercase tracking-wider text-muted">Total Audience</p>
+          <p className="mt-2 text-2xl sm:text-3xl font-black text-ink">
+            {statsLoading ? "..." : stats.total.toLocaleString()}
+          </p>
+          <span className="mt-1 block text-[11px] text-muted">Lifetime subscribers</span>
+        </div>
+
+        <div className="rounded-2xl border border-black/[.08] dark:border-white/[.08] bg-surface p-5 shadow-card">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-bold uppercase tracking-wider text-muted">Active (Subscribed)</p>
+            <span className="size-2 rounded-full bg-emerald-500" />
+          </div>
+          <p className="mt-2 text-2xl sm:text-3xl font-black text-emerald-600 dark:text-emerald-400">
+            {statsLoading ? "..." : stats.active.toLocaleString()}
+          </p>
+          <span className="mt-1 block text-[11px] text-muted">Confirmed double opt-in</span>
+        </div>
+
+        <div className="rounded-2xl border border-black/[.08] dark:border-white/[.08] bg-surface p-5 shadow-card">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-bold uppercase tracking-wider text-muted">Pending Verification</p>
+            <span className="size-2 rounded-full bg-amber-500" />
+          </div>
+          <p className="mt-2 text-2xl sm:text-3xl font-black text-amber-600 dark:text-amber-400">
+            {statsLoading ? "..." : stats.pending.toLocaleString()}
+          </p>
+          <span className="mt-1 block text-[11px] text-muted">Awaiting confirmation</span>
+        </div>
+
+        <div className="rounded-2xl border border-black/[.08] dark:border-white/[.08] bg-surface p-5 shadow-card">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-bold uppercase tracking-wider text-muted">Unsubscribed</p>
+            <span className="size-2 rounded-full bg-slate-400" />
+          </div>
+          <p className="mt-2 text-2xl sm:text-3xl font-black text-muted">
+            {statsLoading ? "..." : stats.unsubscribed.toLocaleString()}
+          </p>
+          <span className="mt-1 block text-[11px] text-muted">Opted out</span>
+        </div>
+      </div>
+
+      {/* 2. Filter & Search Controls */}
+      <div className="mt-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        {/* Status Filter Tabs */}
+        <div className="flex flex-wrap items-center gap-1.5 rounded-2xl border border-black/[.08] dark:border-white/[.08] bg-surface p-1.5 shadow-xs">
+          {(["ALL", "SUBSCRIBED", "PENDING", "UNSUBSCRIBED"] as const).map((status) => {
+            const isActive = statusFilter === status;
+            const labels = {
+              ALL: "All",
+              SUBSCRIBED: "Active",
+              PENDING: "Pending",
+              UNSUBSCRIBED: "Unsubscribed",
+            };
+            return (
+              <button
+                key={status}
+                type="button"
+                onClick={() => setStatusFilter(status)}
+                className={`rounded-xl px-3.5 py-1.5 text-xs font-bold transition-all ${
+                  isActive
+                    ? "bg-moss dark:bg-primary text-white dark:text-[#171B19] shadow-sm"
+                    : "text-muted hover:text-ink hover:bg-black/5 dark:hover:bg-white/5"
+                }`}
+              >
+                {labels[status]}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Search Bar */}
+        <form onSubmit={handleSearchSubmit} className="relative flex items-center max-w-xs w-full">
+          <input
+            type="text"
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            placeholder="Search by email..."
+            className="w-full rounded-2xl border border-black/10 dark:border-white/10 bg-surface px-4 py-2 pr-9 text-xs text-ink placeholder:text-muted focus:border-moss focus:outline-none focus:ring-1 focus:ring-moss dark:focus:border-primary dark:focus:ring-primary shadow-xs"
+          />
+          {searchInput ? (
+            <button
+              type="button"
+              onClick={handleClearSearch}
+              className="absolute right-2.5 text-muted hover:text-ink"
+            >
+              <X size={14} />
+            </button>
+          ) : (
+            <Search size={14} className="absolute right-2.5 text-muted pointer-events-none" />
+          )}
+        </form>
+      </div>
+
+      {/* 3. Subscribers Table */}
+      <section className="mt-6 rounded-3xl border border-black/[.08] dark:border-white/[.08] bg-surface shadow-card overflow-hidden">
+        {loading ? (
+          <div className="py-16">
+            <Loading label="Loading subscribers..." />
+          </div>
+        ) : error ? (
+          <div className="p-8">
+            <Notice>{error}</Notice>
+          </div>
+        ) : subscribers.length === 0 ? (
+          <div className="p-12 text-center">
+            <EmptyState title="No subscribers found">
+              {search
+                ? `No subscribers matched the search term "${search}".`
+                : statusFilter !== "ALL"
+                ? `No subscribers currently in ${statusFilter.toLowerCase()} status.`
+                : "Your newsletter audience will appear here once visitors subscribe."}
+            </EmptyState>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse text-xs">
+              <thead>
+                <tr className="border-b border-black/[.06] dark:border-white/[.06] bg-paper/40 dark:bg-surface-elevated/40 text-[10px] font-bold uppercase tracking-wider text-muted">
+                  <th className="py-3.5 px-6">Email</th>
+                  <th className="py-3.5 px-6">Status</th>
+                  <th className="py-3.5 px-6">Subscribed At</th>
+                  <th className="py-3.5 px-6">Joined</th>
+                  <th className="py-3.5 px-6 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-black/[.04] dark:divide-white/[.04]">
+                {subscribers.map((sub) => {
+                  return (
+                    <tr key={sub.id} className="hover:bg-black/[0.02] dark:hover:bg-white/[0.02] transition-colors">
+                      <td className="py-4 px-6 font-medium text-ink">
+                        <span className="font-mono">{sub.email}</span>
+                      </td>
+                      <td className="py-4 px-6">
+                        {sub.status === "SUBSCRIBED" && (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2.5 py-0.5 font-bold text-[10px] text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                            <span className="size-1.5 rounded-full bg-emerald-500" />
+                            Active
+                          </span>
+                        )}
+                        {sub.status === "PENDING" && (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2.5 py-0.5 font-bold text-[10px] text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                            <Clock size={10} />
+                            Pending
+                          </span>
+                        )}
+                        {sub.status === "UNSUBSCRIBED" && (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-slate-500/10 px-2.5 py-0.5 font-bold text-[10px] text-slate-500 dark:text-slate-400 border border-slate-500/20">
+                            <UserX size={10} />
+                            Unsubscribed
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-4 px-6 text-muted">
+                        {sub.subscribedAt
+                          ? new Date(sub.subscribedAt).toLocaleDateString(undefined, {
+                              year: "numeric",
+                              month: "short",
+                              day: "numeric",
+                            })
+                          : "—"}
+                      </td>
+                      <td className="py-4 px-6 text-muted">
+                        {new Date(sub.createdAt).toLocaleDateString(undefined, {
+                          year: "numeric",
+                          month: "short",
+                          day: "numeric",
+                        })}
+                      </td>
+                      <td className="py-4 px-6 text-right">
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteSubscriber(sub)}
+                          className="grid size-8 place-items-center rounded-xl text-muted hover:text-red-500 hover:bg-red-500/10 transition-all ml-auto"
+                          aria-label={`Delete subscriber ${sub.email}`}
+                          title="Delete subscriber record"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* Pagination */}
+        {pagination.totalPages > 1 && (
+          <div className="p-4 border-t border-black/[.06] dark:border-white/[.06] flex items-center justify-between">
+            <span className="text-xs text-muted">
+              Showing {((pagination.page - 1) * pagination.limit) + 1} to {Math.min(pagination.page * pagination.limit, pagination.total)} of {pagination.total} subscribers
+            </span>
+            <Pagination
+              page={pagination.page}
+              limit={pagination.limit}
+              total={pagination.total}
+              onChange={(newPage) => fetchSubscribers(newPage)}
+            />
+          </div>
+        )}
+      </section>
+    </>
+  );
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   13. SEARCH ANALYTICS & ZERO-RESULT INTELLIGENCE (PHASE 3B)
+   ══════════════════════════════════════════════════════════════════════ */
+
+export function AdminSearchAnalyticsPage() {
+  const [period, setPeriod] = useState<"7d" | "30d" | "90d" | "all">("30d");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [activeTab, setActiveTab] = useState<"top" | "zero" | "recent">("top");
+
+  // Overview Data (KPIs, Trend, Top Lists)
+  const [overview, setOverview] = useState<SearchAnalyticsOverview | null>(null);
+  const [overviewLoading, setOverviewLoading] = useState(true);
+  const [overviewError, setOverviewError] = useState<string | null>(null);
+
+  // Zero-Result Tab Data
+  const [zeroResults, setZeroResults] = useState<TopZeroResultKeyword[]>([]);
+  const [zeroPagination, setZeroPagination] = useState({ page: 1, limit: 10, total: 0, totalPages: 1 });
+  const [zeroSearch, setZeroSearch] = useState("");
+  const [zeroSearchInput, setZeroSearchInput] = useState("");
+  const [zeroLoading, setZeroLoading] = useState(false);
+
+  // Recent Event Logs Tab Data
+  const [recentLogs, setRecentLogs] = useState<SearchAnalyticsLogItem[]>([]);
+  const [recentPagination, setRecentPagination] = useState({ page: 1, limit: 15, total: 0, totalPages: 1 });
+  const [recentHasResults, setRecentHasResults] = useState<"ALL" | "true" | "false">("ALL");
+  const [recentSearch, setRecentSearch] = useState("");
+  const [recentSearchInput, setRecentSearchInput] = useState("");
+  const [recentLoading, setRecentLoading] = useState(false);
+
+  const fetchOverview = async () => {
+    try {
+      setOverviewLoading(true);
+      setOverviewError(null);
+      const params = new URLSearchParams({ period });
+      if (startDate) params.set("startDate", startDate);
+      if (endDate) params.set("endDate", endDate);
+
+      const res = await api.get<{ data: SearchAnalyticsOverview }>(
+        `/admin/search-analytics/overview?${params.toString()}`
+      );
+      if (res.data?.data) {
+        setOverview(res.data.data);
+      }
+    } catch (err: any) {
+      setOverviewError(getErrorMessage(err));
+    } finally {
+      setOverviewLoading(false);
+    }
+  };
+
+  const fetchZeroResults = async (page = 1) => {
+    try {
+      setZeroLoading(true);
+      const params = new URLSearchParams({
+        period,
+        page: String(page),
+        limit: "10",
+      });
+      if (startDate) params.set("startDate", startDate);
+      if (endDate) params.set("endDate", endDate);
+      if (zeroSearch.trim()) params.set("search", zeroSearch.trim());
+
+      const res = await api.get<{ data: TopZeroResultKeyword[]; pagination: typeof zeroPagination }>(
+        `/admin/search-analytics/zero-results?${params.toString()}`
+      );
+      setZeroResults(res.data.data || []);
+      if (res.data.pagination) setZeroPagination(res.data.pagination);
+    } catch (err: any) {
+      console.error("Failed to load zero results report", err);
+    } finally {
+      setZeroLoading(false);
+    }
+  };
+
+  const fetchRecentLogs = async (page = 1) => {
+    try {
+      setRecentLoading(true);
+      const params = new URLSearchParams({
+        period,
+        page: String(page),
+        limit: "15",
+        hasResults: recentHasResults,
+      });
+      if (startDate) params.set("startDate", startDate);
+      if (endDate) params.set("endDate", endDate);
+      if (recentSearch.trim()) params.set("search", recentSearch.trim());
+
+      const res = await api.get<{ data: SearchAnalyticsLogItem[]; pagination: typeof recentPagination }>(
+        `/admin/search-analytics/recent?${params.toString()}`
+      );
+      setRecentLogs(res.data.data || []);
+      if (res.data.pagination) setRecentPagination(res.data.pagination);
+    } catch (err: any) {
+      console.error("Failed to load recent search logs", err);
+    } finally {
+      setRecentLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchOverview();
+  }, [period, startDate, endDate]);
+
+  useEffect(() => {
+    if (activeTab === "zero") {
+      fetchZeroResults(1);
+    } else if (activeTab === "recent") {
+      fetchRecentLogs(1);
+    }
+  }, [activeTab, period, startDate, endDate, zeroSearch, recentHasResults, recentSearch]);
+
+  const handlePruneLogs = async () => {
+    const confirmed = await confirmDestructive({
+      title: "Prune Historical Search Logs",
+      text: "Remove search analytics records older than 90 days? Aggregate insights will be recalculated.",
+      confirmText: "Yes, Prune Old Logs",
+    });
+    if (!confirmed) return;
+
+    try {
+      const res = await api.delete<{ data: { deletedCount: number } }>("/admin/search-analytics/prune?olderThanDays=90");
+      showToast({
+        title: `Pruned ${res.data?.data?.deletedCount ?? 0} historical search logs.`,
+        icon: "success",
+      });
+      fetchOverview();
+      if (activeTab === "zero") fetchZeroResults(1);
+      if (activeTab === "recent") fetchRecentLogs(1);
+    } catch (err: any) {
+      showError("Prune Failed", getErrorMessage(err));
+    }
+  };
+
+  // Find max activity value for bar chart normalization
+  const maxTrendValue = useMemo(() => {
+    if (!overview?.activityTrend || overview.activityTrend.length === 0) return 10;
+    const peak = Math.max(...overview.activityTrend.map((t) => t.total));
+    return peak > 0 ? peak : 10;
+  }, [overview?.activityTrend]);
+
+  return (
+    <>
+      <Seo title="Search Analytics & Insights — Admin" robotsIndex={false} robotsFollow={false} />
+
+      {/* Page Header */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-moss dark:text-primary mb-1">
+            <BarChart3 size={14} />
+            <span>Search Intelligence</span>
+          </div>
+          <h1 className="font-display text-2xl sm:text-3xl font-black tracking-tight text-ink">
+            Search Analytics &amp; Trends
+          </h1>
+          <p className="mt-1 text-xs text-muted max-w-2xl leading-relaxed">
+            Privacy-conscious intelligence on reader search queries, high-demand topics, and zero-result content opportunities.
+          </p>
+        </div>
+
+        {/* Global Actions */}
+        <div className="flex items-center gap-2">
+          <Button
+            variant="secondary"
+            onClick={() => {
+              fetchOverview();
+              if (activeTab === "zero") fetchZeroResults(zeroPagination.page);
+              if (activeTab === "recent") fetchRecentLogs(recentPagination.page);
+            }}
+            className="!h-9 !px-3 text-xs flex items-center gap-1.5"
+            title="Refresh search analytics"
+          >
+            <RefreshCw size={13} className={overviewLoading ? "animate-spin text-moss dark:text-primary" : ""} />
+            <span>Refresh</span>
+          </Button>
+
+          <Button
+            variant="ghost"
+            onClick={handlePruneLogs}
+            className="!h-9 !px-3 text-xs text-muted hover:text-red-500 hover:bg-red-500/10 transition"
+            title="Prune logs older than 90 days"
+          >
+            <Trash2 size={13} />
+            <span className="hidden sm:inline">Prune Logs</span>
+          </Button>
+        </div>
+      </div>
+
+      {overviewError && (
+        <div className="mt-4">
+          <Notice>{overviewError}</Notice>
+        </div>
+      )}
+
+      {/* Date Range & Period Filter Bar */}
+      <section className="mt-6 rounded-2xl border border-black/[.08] dark:border-white/[.08] bg-surface p-4 shadow-card">
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+          {/* Quick Period Pills */}
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-muted mr-1.5">
+              Period:
+            </span>
+            {(
+              [
+                { id: "7d", label: "Last 7 Days" },
+                { id: "30d", label: "Last 30 Days" },
+                { id: "90d", label: "Last 90 Days" },
+                { id: "all", label: "All Time" },
+              ] as const
+            ).map((p) => {
+              const isActive = period === p.id && !startDate && !endDate;
+              return (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => {
+                    setPeriod(p.id);
+                    setStartDate("");
+                    setEndDate("");
+                  }}
+                  className={`rounded-full px-3 py-1 text-xs font-bold transition ${
+                    isActive
+                      ? "bg-moss text-white dark:bg-primary dark:text-[#171B19] shadow-sm"
+                      : "bg-paper dark:bg-surface-elevated text-muted hover:text-ink hover:border-moss/30 border border-black/[.06] dark:border-white/[.06]"
+                  }`}
+                >
+                  {p.label}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Custom Date Inputs */}
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-muted">
+              Custom Range:
+            </span>
+            <input
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              className="rounded-xl border border-black/10 dark:border-white/10 bg-paper dark:bg-surface-elevated px-2.5 py-1 text-xs text-ink focus:outline-none focus:ring-1 focus:ring-moss"
+              placeholder="From"
+              aria-label="Start date filter"
+            />
+            <span className="text-muted">to</span>
+            <input
+              type="date"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              className="rounded-xl border border-black/10 dark:border-white/10 bg-paper dark:bg-surface-elevated px-2.5 py-1 text-xs text-ink focus:outline-none focus:ring-1 focus:ring-moss"
+              placeholder="To"
+              aria-label="End date filter"
+            />
+            {(startDate || endDate) && (
+              <button
+                type="button"
+                onClick={() => {
+                  setStartDate("");
+                  setEndDate("");
+                }}
+                className="text-xs text-muted hover:text-red-500 underline ml-1"
+              >
+                Reset
+              </button>
+            )}
+          </div>
+        </div>
+      </section>
+
+      {/* Core Summary KPI Metrics */}
+      <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-5">
+        {/* Total Searches */}
+        <div className="rounded-2xl border border-black/[.08] dark:border-white/[.08] bg-surface p-4 sm:p-5 shadow-card">
+          <div className="flex items-center justify-between text-muted mb-2">
+            <span className="text-[11px] font-bold uppercase tracking-wider">Total Searches</span>
+            <span className="grid size-7 place-items-center rounded-lg bg-moss/10 dark:bg-primary/20 text-moss dark:text-primary">
+              <Search size={14} />
+            </span>
+          </div>
+          <div className="font-display text-2xl sm:text-3xl font-black text-ink">
+            {overviewLoading ? "..." : (overview?.summary.totalSearches ?? 0).toLocaleString()}
+          </div>
+          <p className="mt-1 text-[11px] text-muted">Recorded user queries</p>
+        </div>
+
+        {/* Unique Terms */}
+        <div className="rounded-2xl border border-black/[.08] dark:border-white/[.08] bg-surface p-4 sm:p-5 shadow-card">
+          <div className="flex items-center justify-between text-muted mb-2">
+            <span className="text-[11px] font-bold uppercase tracking-wider">Unique Keywords</span>
+            <span className="grid size-7 place-items-center rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400">
+              <Sparkles size={14} />
+            </span>
+          </div>
+          <div className="font-display text-2xl sm:text-3xl font-black text-ink">
+            {overviewLoading ? "..." : (overview?.summary.uniqueTerms ?? 0).toLocaleString()}
+          </div>
+          <p className="mt-1 text-[11px] text-muted">Distinct search terms</p>
+        </div>
+
+        {/* Zero-Result Searches */}
+        <div className="rounded-2xl border border-black/[.08] dark:border-white/[.08] bg-surface p-4 sm:p-5 shadow-card">
+          <div className="flex items-center justify-between text-muted mb-2">
+            <span className="text-[11px] font-bold uppercase tracking-wider">Zero Results</span>
+            <span className="grid size-7 place-items-center rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400">
+              <AlertCircle size={14} />
+            </span>
+          </div>
+          <div className="font-display text-2xl sm:text-3xl font-black text-amber-600 dark:text-amber-400">
+            {overviewLoading ? "..." : (overview?.summary.zeroResultSearches ?? 0).toLocaleString()}
+          </div>
+          <p className="mt-1 text-[11px] text-muted">No content found</p>
+        </div>
+
+        {/* Zero-Result Rate */}
+        <div className="rounded-2xl border border-black/[.08] dark:border-white/[.08] bg-surface p-4 sm:p-5 shadow-card">
+          <div className="flex items-center justify-between text-muted mb-2">
+            <span className="text-[11px] font-bold uppercase tracking-wider">Zero-Result Rate</span>
+            <span className="grid size-7 place-items-center rounded-lg bg-orange-500/10 text-orange-600 dark:text-orange-400">
+              <TrendingDown size={14} />
+            </span>
+          </div>
+          <div className="font-display text-2xl sm:text-3xl font-black text-ink">
+            {overviewLoading ? "..." : `${overview?.summary.zeroResultRate ?? 0}%`}
+          </div>
+          <p className="mt-1 text-[11px] text-muted">Opportunity ratio</p>
+        </div>
+
+        {/* Successful Searches */}
+        <div className="rounded-2xl border border-black/[.08] dark:border-white/[.08] bg-surface p-4 sm:p-5 shadow-card col-span-2 sm:col-span-1">
+          <div className="flex items-center justify-between text-muted mb-2">
+            <span className="text-[11px] font-bold uppercase tracking-wider">With Results</span>
+            <span className="grid size-7 place-items-center rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+              <CheckCircle2 size={14} />
+            </span>
+          </div>
+          <div className="font-display text-2xl sm:text-3xl font-black text-emerald-600 dark:text-emerald-400">
+            {overviewLoading ? "..." : (overview?.summary.successfulSearches ?? 0).toLocaleString()}
+          </div>
+          <p className="mt-1 text-[11px] text-muted">Stories matched</p>
+        </div>
+      </div>
+
+      {/* Search Activity Trend Interactive Visualizer */}
+      <section className="mt-6 rounded-3xl border border-black/[.08] dark:border-white/[.08] bg-surface p-6 shadow-card">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4 border-b border-black/[.06] dark:border-white/[.06] pb-3">
+          <div>
+            <h2 className="font-display text-base font-bold text-ink">Search Volume Activity Timeline</h2>
+            <p className="text-xs text-muted">Daily reader search frequency across selected timeframe</p>
+          </div>
+          <div className="flex items-center gap-4 text-xs">
+            <span className="inline-flex items-center gap-1.5 font-medium text-muted">
+              <span className="size-2.5 rounded-full bg-moss dark:bg-primary" /> Total Searches
+            </span>
+            <span className="inline-flex items-center gap-1.5 font-medium text-muted">
+              <span className="size-2.5 rounded-full bg-amber-500" /> Zero Results
+            </span>
+          </div>
+        </div>
+
+        {overviewLoading ? (
+          <div className="py-12 flex justify-center"><Loading label="Rendering activity trend..." /></div>
+        ) : !overview?.activityTrend || overview.activityTrend.length === 0 ? (
+          <div className="py-12 text-center text-xs text-muted">
+            No search activity recorded in this period.
+          </div>
+        ) : (
+          <div className="pt-2">
+            {/* Visual Bar Chart */}
+            <div className="flex items-end gap-2 h-44 overflow-x-auto pb-6 pt-2 no-scrollbar">
+              {overview.activityTrend.map((point) => {
+                const totalHeightPercent = Math.max(8, Math.round((point.total / maxTrendValue) * 100));
+                const zeroHeightPercent = point.total > 0
+                  ? Math.round((point.zeroResults / point.total) * 100)
+                  : 0;
+
+                return (
+                  <div
+                    key={point.date}
+                    className="group relative flex flex-col items-center flex-1 min-w-[28px] max-w-[48px] h-full justify-end"
+                  >
+                    {/* Tooltip */}
+                    <div className="absolute -top-12 z-20 hidden group-hover:flex flex-col items-center rounded-lg bg-ink text-paper px-2 py-1 text-[10px] whitespace-nowrap shadow-lg">
+                      <span className="font-bold">{point.date}</span>
+                      <span>{point.total} total ({point.zeroResults} zero)</span>
+                    </div>
+
+                    {/* Bar Track */}
+                    <div
+                      className="w-full rounded-t-lg bg-moss/80 dark:bg-primary/80 transition-all hover:opacity-90 relative overflow-hidden flex flex-col justify-end"
+                      style={{ height: `${totalHeightPercent}%` }}
+                    >
+                      {/* Zero-result top overlay if any */}
+                      {point.zeroResults > 0 && (
+                        <div
+                          className="w-full bg-amber-500/90 transition-all"
+                          style={{ height: `${zeroHeightPercent}%` }}
+                          title={`${point.zeroResults} zero-result searches`}
+                        />
+                      )}
+                    </div>
+
+                    {/* Date Label */}
+                    <span className="absolute -bottom-5 text-[9px] font-mono text-muted truncate max-w-[36px]">
+                      {point.date.slice(5)}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </section>
+
+      {/* Main Tabs Navigation */}
+      <div className="mt-8 border-b border-black/[.08] dark:border-white/[.08] flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() => setActiveTab("top")}
+          className={`pb-3 text-xs sm:text-sm font-bold transition flex items-center gap-2 border-b-2 ${
+            activeTab === "top"
+              ? "border-moss text-moss dark:border-primary dark:text-primary"
+              : "border-transparent text-muted hover:text-ink"
+          }`}
+        >
+          <Sparkles size={15} />
+          <span>Top Searched Keywords</span>
+          {overview?.topKeywords && (
+            <span className="rounded-full bg-black/5 dark:bg-white/10 px-2 py-0.5 text-[10px]">
+              {overview.topKeywords.length}
+            </span>
+          )}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab("zero")}
+          className={`pb-3 text-xs sm:text-sm font-bold transition flex items-center gap-2 border-b-2 ${
+            activeTab === "zero"
+              ? "border-amber-500 text-amber-600 dark:text-amber-400"
+              : "border-transparent text-muted hover:text-ink"
+          }`}
+        >
+          <AlertCircle size={15} />
+          <span>Missing Content Gaps (Zero-Result Report)</span>
+          {overview?.summary.zeroResultSearches !== undefined && overview.summary.zeroResultSearches > 0 && (
+            <span className="rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 px-2 py-0.5 text-[10px] font-bold">
+              {overview.summary.zeroResultSearches}
+            </span>
+          )}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab("recent")}
+          className={`pb-3 text-xs sm:text-sm font-bold transition flex items-center gap-2 border-b-2 ${
+            activeTab === "recent"
+              ? "border-moss text-moss dark:border-primary dark:text-primary"
+              : "border-transparent text-muted hover:text-ink"
+          }`}
+        >
+          <Clock size={15} />
+          <span>Live Search Stream</span>
+        </button>
+      </div>
+
+      {/* TAB 1: TOP SEARCH KEYWORDS */}
+      {activeTab === "top" && (
+        <section className="mt-6 rounded-3xl border border-black/[.08] dark:border-white/[.08] bg-surface shadow-card overflow-hidden">
+          <div className="p-5 border-b border-black/[.06] dark:border-white/[.06] flex items-center justify-between">
+            <div>
+              <h3 className="font-display text-base font-bold text-ink">Most Searched Keywords</h3>
+              <p className="text-xs text-muted">High-intent topics readers are searching for</p>
+            </div>
+            <span className="text-xs font-semibold text-muted">Ranked by volume</span>
+          </div>
+
+          {overviewLoading ? (
+            <div className="py-12 flex justify-center"><Loading label="Loading top keywords..." /></div>
+          ) : !overview?.topKeywords || overview.topKeywords.length === 0 ? (
+            <div className="p-8 text-center text-xs text-muted">
+              No search keywords recorded yet in this period.
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className="border-b border-black/[.08] dark:border-white/[.08] bg-black/[.02] dark:bg-white/[.02] text-[10px] font-bold uppercase tracking-wider text-muted">
+                    <th className="py-3 px-5 w-12 text-center">#</th>
+                    <th className="py-3 px-5">Search Query</th>
+                    <th className="py-3 px-5">Search Volume</th>
+                    <th className="py-3 px-5">Zero Results</th>
+                    <th className="py-3 px-5">Last Searched</th>
+                    <th className="py-3 px-5 text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-black/[.04] dark:divide-white/[.04]">
+                  {overview.topKeywords.map((kw, idx) => (
+                    <tr key={kw.normalizedQuery} className="hover:bg-black/[.015] dark:hover:bg-white/[.015] transition">
+                      <td className="py-3.5 px-5 text-center font-mono font-bold text-muted">
+                        {idx + 1}
+                      </td>
+                      <td className="py-3.5 px-5">
+                        <span className="font-bold text-ink font-display text-sm">{kw.term}</span>
+                        <span className="block font-mono text-[10px] text-muted">normalized: {kw.normalizedQuery}</span>
+                      </td>
+                      <td className="py-3.5 px-5">
+                        <span className="inline-flex items-center gap-1 rounded-full bg-moss/10 dark:bg-primary/20 px-2.5 py-0.5 font-bold text-moss dark:text-primary">
+                          {kw.searchCount.toLocaleString()} {kw.searchCount === 1 ? "search" : "searches"}
+                        </span>
+                      </td>
+                      <td className="py-3.5 px-5">
+                        {kw.zeroResultsCount > 0 ? (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2 py-0.5 font-bold text-amber-600 dark:text-amber-400">
+                            {kw.zeroResultsCount} ({Math.round((kw.zeroResultsCount / kw.searchCount) * 100)}%)
+                          </span>
+                        ) : (
+                          <span className="text-muted text-[11px]">0 (100% found)</span>
+                        )}
+                      </td>
+                      <td className="py-3.5 px-5 text-muted text-[11px]">
+                        {new Date(kw.lastSearchedAt).toLocaleString(undefined, {
+                          month: "short",
+                          day: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </td>
+                      <td className="py-3.5 px-5 text-right">
+                        <Link
+                          to={`/blogs?search=${encodeURIComponent(kw.term)}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1 text-xs font-semibold text-moss dark:text-primary hover:underline"
+                        >
+                          <span>View Results</span>
+                          <ArrowUpRight size={13} />
+                        </Link>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      )}
+
+      {/* TAB 2: ZERO-RESULT OPPORTUNITIES (CONTENT GAPS REPORT) */}
+      {activeTab === "zero" && (
+        <section className="mt-6 rounded-3xl border border-black/[.08] dark:border-white/[.08] bg-surface shadow-card overflow-hidden">
+          <div className="p-5 border-b border-black/[.06] dark:border-white/[.06] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="font-display text-base font-bold text-amber-600 dark:text-amber-400">
+                  Zero-Result Content Gaps
+                </h3>
+                <span className="rounded-full bg-amber-500/10 px-2.5 py-0.5 text-[10px] font-bold text-amber-600 dark:text-amber-400">
+                  Missing Stories
+                </span>
+              </div>
+              <p className="text-xs text-muted mt-0.5">
+                Topics readers searched for that returned zero articles — write new stories to capture this audience.
+              </p>
+            </div>
+
+            {/* Search inside zero results */}
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                setZeroSearch(zeroSearchInput);
+              }}
+              className="flex items-center gap-2"
+            >
+              <div className="relative">
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
+                <input
+                  type="text"
+                  value={zeroSearchInput}
+                  onChange={(e) => setZeroSearchInput(e.target.value)}
+                  placeholder="Filter zero-result terms..."
+                  className="rounded-full border border-black/10 dark:border-white/10 bg-paper dark:bg-surface-elevated pl-8 pr-3 py-1.5 text-xs text-ink focus:outline-none focus:ring-1 focus:ring-amber-500 w-52"
+                />
+              </div>
+              <Button type="submit" variant="secondary" className="!h-8 !px-3 text-xs">
+                Filter
+              </Button>
+            </form>
+          </div>
+
+          {zeroLoading ? (
+            <div className="py-12 flex justify-center"><Loading label="Compiling zero-result opportunities..." /></div>
+          ) : zeroResults.length === 0 ? (
+            <div className="p-8 text-center text-xs text-muted">
+              {zeroSearch ? `No zero-result searches match "${zeroSearch}".` : "No zero-result searches recorded for this period."}
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className="border-b border-black/[.08] dark:border-white/[.08] bg-black/[.02] dark:bg-white/[.02] text-[10px] font-bold uppercase tracking-wider text-muted">
+                    <th className="py-3 px-5">Missing Topic Query</th>
+                    <th className="py-3 px-5">Search Occurrences</th>
+                    <th className="py-3 px-5">Category Scoped</th>
+                    <th className="py-3 px-5">Last Attempted</th>
+                    <th className="py-3 px-5 text-right">Opportunity Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-black/[.04] dark:divide-white/[.04]">
+                  {zeroResults.map((item) => (
+                    <tr key={item.normalizedQuery} className="hover:bg-black/[.015] dark:hover:bg-white/[.015] transition">
+                      <td className="py-3.5 px-5">
+                        <span className="font-bold text-ink font-display text-sm">
+                          {item.term || (item as any).originalQuery || item.normalizedQuery}
+                        </span>
+                        <span className="block font-mono text-[10px] text-muted">query: {item.normalizedQuery}</span>
+                      </td>
+                      <td className="py-3.5 px-5">
+                        <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2.5 py-0.5 font-bold text-amber-700 dark:text-amber-300">
+                          {(item.occurrences ?? (item as any).count ?? 0).toLocaleString()}{" "}
+                          {(item.occurrences ?? (item as any).count ?? 0) === 1 ? "time" : "times"}
+                        </span>
+                      </td>
+                      <td className="py-3.5 px-5 text-muted">
+                        {item.lastCategory ? (
+                          <span className="rounded-full bg-black/5 dark:bg-white/10 px-2 py-0.5 text-[10px] font-semibold">
+                            {item.lastCategory}
+                          </span>
+                        ) : (
+                          <span className="text-[11px] text-muted">All Categories</span>
+                        )}
+                      </td>
+                      <td className="py-3.5 px-5 text-muted text-[11px]">
+                        {new Date(item.lastSearchedAt).toLocaleString(undefined, {
+                          month: "short",
+                          day: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </td>
+                      <td className="py-3.5 px-5 text-right">
+                        <Link
+                          to={`/admin/posts/new`}
+                          className="inline-flex items-center gap-1.5 rounded-full bg-moss/10 dark:bg-primary/20 hover:bg-moss/20 px-3 py-1 text-xs font-bold text-moss dark:text-primary transition"
+                          title="Open editor to create a story on this topic"
+                        >
+                          <Plus size={13} />
+                          <span>Write Story</span>
+                        </Link>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* Zero Results Pagination */}
+          {zeroPagination.totalPages > 1 && (
+            <div className="p-4 border-t border-black/[.06] dark:border-white/[.06] flex items-center justify-between">
+              <span className="text-xs text-muted">
+                Showing {((zeroPagination.page - 1) * zeroPagination.limit) + 1} to {Math.min(zeroPagination.page * zeroPagination.limit, zeroPagination.total)} of {zeroPagination.total} content gaps
+              </span>
+              <Pagination
+                page={zeroPagination.page}
+                limit={zeroPagination.limit}
+                total={zeroPagination.total}
+                onChange={(newPage) => fetchZeroResults(newPage)}
+              />
+            </div>
+          )}
+        </section>
+      )}
+
+      {/* TAB 3: REAL-TIME SEARCH STREAM AUDIT */}
+      {activeTab === "recent" && (
+        <section className="mt-6 rounded-3xl border border-black/[.08] dark:border-white/[.08] bg-surface shadow-card overflow-hidden">
+          <div className="p-5 border-b border-black/[.06] dark:border-white/[.06] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h3 className="font-display text-base font-bold text-ink">Recent Search Events</h3>
+              <p className="text-xs text-muted">Chronological search query event stream</p>
+            </div>
+
+            {/* Filter controls */}
+            <div className="flex flex-wrap items-center gap-2">
+              <select
+                value={recentHasResults}
+                onChange={(e) => setRecentHasResults(e.target.value as any)}
+                className="rounded-xl border border-black/10 dark:border-white/10 bg-paper dark:bg-surface-elevated px-3 py-1.5 text-xs text-ink focus:outline-none focus:ring-1 focus:ring-moss"
+              >
+                <option value="ALL">All Outcomes</option>
+                <option value="true">With Results</option>
+                <option value="false">Zero Results</option>
+              </select>
+
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  setRecentSearch(recentSearchInput);
+                }}
+                className="flex items-center gap-1.5"
+              >
+                <input
+                  type="text"
+                  value={recentSearchInput}
+                  onChange={(e) => setRecentSearchInput(e.target.value)}
+                  placeholder="Filter query..."
+                  className="rounded-full border border-black/10 dark:border-white/10 bg-paper dark:bg-surface-elevated px-3 py-1.5 text-xs text-ink focus:outline-none focus:ring-1 focus:ring-moss w-40"
+                />
+                <Button type="submit" variant="secondary" className="!h-8 !px-3 text-xs">
+                  Filter
+                </Button>
+              </form>
+            </div>
+          </div>
+
+          {recentLoading ? (
+            <div className="py-12 flex justify-center"><Loading label="Loading search event stream..." /></div>
+          ) : recentLogs.length === 0 ? (
+            <div className="p-8 text-center text-xs text-muted">
+              No recent search logs match the criteria.
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className="border-b border-black/[.08] dark:border-white/[.08] bg-black/[.02] dark:bg-white/[.02] text-[10px] font-bold uppercase tracking-wider text-muted">
+                    <th className="py-3 px-5">Query String</th>
+                    <th className="py-3 px-5">Category Scoped</th>
+                    <th className="py-3 px-5">Results Count</th>
+                    <th className="py-3 px-5">Outcome Status</th>
+                    <th className="py-3 px-5 text-right">Timestamp</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-black/[.04] dark:divide-white/[.04]">
+                  {recentLogs.map((log) => (
+                    <tr key={log.id} className="hover:bg-black/[.015] dark:hover:bg-white/[.015] transition">
+                      <td className="py-3 px-5">
+                        <span className="font-bold text-ink">{log.searchQuery}</span>
+                      </td>
+                      <td className="py-3 px-5 text-muted">
+                        {log.categoryScope ? (
+                          <span className="rounded-full bg-black/5 dark:bg-white/10 px-2 py-0.5 text-[10px] font-semibold">
+                            {log.categoryScope}
+                          </span>
+                        ) : (
+                          <span className="text-[11px] text-muted">Global</span>
+                        )}
+                      </td>
+                      <td className="py-3 px-5 font-mono text-xs font-semibold">
+                        {log.resultsCount}
+                      </td>
+                      <td className="py-3 px-5">
+                        {log.hasResults ? (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
+                            <CheckCircle2 size={11} />
+                            <span>Matched</span>
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-bold text-amber-600 dark:text-amber-400">
+                            <AlertCircle size={11} />
+                            <span>Zero Results</span>
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-3 px-5 text-right text-muted text-[11px]">
+                        {new Date(log.createdAt).toLocaleString(undefined, {
+                          month: "short",
+                          day: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                          second: "2-digit",
+                        })}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* Stream Pagination */}
+          {recentPagination.totalPages > 1 && (
+            <div className="p-4 border-t border-black/[.06] dark:border-white/[.06] flex items-center justify-between">
+              <span className="text-xs text-muted">
+                Showing {((recentPagination.page - 1) * recentPagination.limit) + 1} to {Math.min(recentPagination.page * recentPagination.limit, recentPagination.total)} of {recentPagination.total} logs
+              </span>
+              <Pagination
+                page={recentPagination.page}
+                limit={recentPagination.limit}
+                total={recentPagination.total}
+                onChange={(newPage) => fetchRecentLogs(newPage)}
+              />
+            </div>
+          )}
+        </section>
+      )}
     </>
   );
 }

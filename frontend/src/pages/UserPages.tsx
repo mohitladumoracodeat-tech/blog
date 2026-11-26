@@ -6,6 +6,7 @@ import {
   ArrowRight,
   ArrowUpRight,
   BookOpen,
+  Bookmark,
   CheckCircle2,
   Clock,
   ExternalLink,
@@ -21,6 +22,7 @@ import {
   Search,
   Send,
   ShieldCheck,
+  Sparkles,
   Trash2,
   Upload,
   X,
@@ -31,16 +33,16 @@ import {
   Button,
   EmptyState,
   Field,
-  Loading,
   Notice,
   PageHeading,
   Pagination,
   SelectField,
+  SkeletonBox,
   TextArea,
 } from "../components/UI";
 import { Seo } from "../components/Seo";
 import { api, getErrorMessage, imageUrl } from "../lib/api";
-import { confirmAction, confirmDestructive, showError, showSuccess, showWarning } from "../lib/alerts";
+import { confirmAction, confirmDestructive, showError, showSuccess, showToast, showWarning } from "../lib/alerts";
 import type { PageResult, Taxonomy } from "../types";
 
 /* ══════════════════════════════════════════════════════════════════════
@@ -76,6 +78,8 @@ interface ExistingPost extends UserPost {
   categoryId: string;
   featuredImageId: string | null;
   tags: Taxonomy[];
+  isFeatured?: boolean;
+  featuredOrder?: number;
   seoTitle?: string | null;
   seoDescription?: string | null;
   seoKeywords?: string | null;
@@ -159,14 +163,83 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 /* ══════════════════════════════════════════════════════════════════════
-   1. USER DASHBOARD PAGE
+   1. USER DASHBOARD PAGE & SKELETON
    ══════════════════════════════════════════════════════════════════════ */
+
+function UserDashboardSkeleton() {
+  return (
+    <div className="space-y-10 sm:space-y-12">
+      {/* Header Banner Skeleton */}
+      <div className="rounded-3xl border border-black/[.08] dark:border-white/[.08] bg-surface p-7 sm:p-10 shadow-card">
+        <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
+          <div className="max-w-2xl space-y-3">
+            <SkeletonBox className="h-5 w-36" />
+            <SkeletonBox className="h-10 w-72 sm:w-96" />
+            <SkeletonBox className="h-4 w-full sm:w-80" />
+          </div>
+          <div className="flex gap-3">
+            <SkeletonBox className="h-10 w-36" />
+            <SkeletonBox className="h-10 w-32" />
+          </div>
+        </div>
+      </div>
+
+      {/* Metrics Grid Skeleton */}
+      <div>
+        <div className="mb-4 flex items-center justify-between">
+          <SkeletonBox className="h-4 w-40" />
+          <SkeletonBox className="h-4 w-28" />
+        </div>
+        <div className="grid gap-4 sm:gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div
+              key={i}
+              className="rounded-3xl border border-black/[.08] dark:border-white/[.08] bg-surface p-6 shadow-card space-y-4"
+            >
+              <div className="flex items-center justify-between">
+                <SkeletonBox className="h-4 w-24" />
+                <SkeletonBox className="size-10 rounded-2xl" />
+              </div>
+              <SkeletonBox className="h-10 w-20" />
+              <SkeletonBox className="h-3 w-40" />
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Recent Submissions Skeleton */}
+      <div className="rounded-3xl border border-black/[.08] dark:border-white/[.08] bg-surface p-6 shadow-card sm:p-9 space-y-6">
+        <div className="flex items-center justify-between border-b border-black/[.08] dark:border-white/[.08] pb-5">
+          <div className="space-y-2">
+            <SkeletonBox className="h-3 w-28" />
+            <SkeletonBox className="h-7 w-48" />
+          </div>
+          <SkeletonBox className="h-4 w-24" />
+        </div>
+        <div className="space-y-4">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="flex items-center justify-between py-3 border-b border-black/[.04] dark:border-white/[.04]">
+              <div className="space-y-2 flex-1 max-w-md">
+                <SkeletonBox className="h-3 w-32" />
+                <SkeletonBox className="h-5 w-64" />
+              </div>
+              <div className="flex gap-2">
+                <SkeletonBox className="h-7 w-20 rounded-full" />
+                <SkeletonBox className="h-7 w-16 rounded-full" />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export function DashboardPage() {
   const { user } = useAuth();
   const { data, loading, error } = useRemote<{ stats: Record<string, number>; recentPosts: UserPost[] }>("/user/dashboard");
 
-  if (loading) return <Loading label="Loading creator workspace..." />;
+  if (loading) return <UserDashboardSkeleton />;
   if (error || !data) return <Notice>{error ?? "Could not load your workspace."}</Notice>;
 
   const stats = [
@@ -177,6 +250,7 @@ export function DashboardPage() {
       icon: Files,
       accent: "text-moss dark:text-primary",
       bg: "bg-moss/10 dark:bg-primary/20",
+      border: "border-l-4 border-l-moss dark:border-l-primary",
     },
     {
       label: "Published Live",
@@ -185,6 +259,7 @@ export function DashboardPage() {
       icon: CheckCircle2,
       accent: "text-emerald-700 dark:text-emerald-400",
       bg: "bg-emerald-500/10 dark:bg-emerald-500/20",
+      border: "border-l-4 border-l-emerald-500",
     },
     {
       label: "Under Review",
@@ -193,6 +268,7 @@ export function DashboardPage() {
       icon: Clock,
       accent: "text-amber-700 dark:text-amber-400",
       bg: "bg-amber-500/10 dark:bg-amber-500/20",
+      border: "border-l-4 border-l-amber-500",
     },
     {
       label: "Needs Revision",
@@ -201,6 +277,7 @@ export function DashboardPage() {
       icon: AlertCircle,
       accent: "text-red-700 dark:text-red-400",
       bg: "bg-red-500/10 dark:bg-red-500/20",
+      border: "border-l-4 border-l-rose-500",
     },
     {
       label: "Appreciations",
@@ -209,6 +286,7 @@ export function DashboardPage() {
       icon: Heart,
       accent: "text-rose-600 dark:text-rose-400",
       bg: "bg-rose-500/10 dark:bg-rose-500/20",
+      border: "border-l-4 border-l-rose-400",
     },
     {
       label: "Discussions",
@@ -217,12 +295,13 @@ export function DashboardPage() {
       icon: MessageSquareText,
       accent: "text-indigo-600 dark:text-indigo-400",
       bg: "bg-indigo-500/10 dark:bg-indigo-500/20",
+      border: "border-l-4 border-l-indigo-500",
     },
   ];
 
   return (
     <div className="space-y-10 sm:space-y-12">
-      <Seo title="Creator Desk — Author Workspace" />
+      <Seo title="Creator Desk — Author Workspace" robotsIndex={false} robotsFollow={false} />
 
       {/* Header Banner */}
       <div className="relative overflow-hidden rounded-3xl border border-black/[.08] dark:border-white/[.08] bg-surface p-7 sm:p-10 shadow-card">
@@ -242,15 +321,19 @@ export function DashboardPage() {
             </p>
           </div>
           <div className="flex shrink-0 flex-col sm:flex-row gap-3">
-            <Link to="/dashboard/posts/new">
-              <Button className="w-full sm:w-auto shadow-sm">
-                <PenLine size={15} /> Write a new story
-              </Button>
+            <Link
+              to="/dashboard/posts/new"
+              className="inline-flex items-center justify-center gap-2 rounded-full bg-moss px-5 py-2.5 text-xs font-bold uppercase tracking-wider text-white shadow-sm transition hover:bg-ink dark:bg-primary dark:text-[#171B19] dark:hover:bg-primary/90 w-full sm:w-auto"
+            >
+              <PenLine size={15} />
+              <span>Write a new story</span>
             </Link>
-            <Link to="/">
-              <Button variant="secondary" className="w-full sm:w-auto">
-                <ExternalLink size={14} /> View Journal
-              </Button>
+            <Link
+              to="/"
+              className="inline-flex items-center justify-center gap-2 rounded-full border border-black/10 dark:border-white/10 bg-surface px-5 py-2.5 text-xs font-bold uppercase tracking-wider text-ink shadow-sm transition hover:border-moss/40 hover:bg-paper dark:hover:bg-surface-elevated w-full sm:w-auto"
+            >
+              <ExternalLink size={14} />
+              <span>View Journal</span>
             </Link>
           </div>
         </div>
@@ -263,10 +346,10 @@ export function DashboardPage() {
           <span className="text-xs text-muted">All-time performance</span>
         </div>
         <div className="grid gap-4 sm:gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {stats.map(({ label, value, note, icon: Icon, accent, bg }) => (
+          {stats.map(({ label, value, note, icon: Icon, accent, bg, border }) => (
             <div
               key={label}
-              className="group relative overflow-hidden rounded-3xl border border-black/[.08] dark:border-white/[.08] bg-surface p-6 shadow-card transition duration-200 hover:-translate-y-0.5 hover:border-moss/40 dark:hover:border-primary/40"
+              className={`group relative overflow-hidden rounded-3xl border border-black/[.08] dark:border-white/[.08] bg-surface p-6 shadow-card transition duration-200 hover:-translate-y-0.5 hover:border-moss/40 dark:hover:border-primary/40 ${border}`}
             >
               <div className="flex items-center justify-between">
                 <p className="text-xs font-bold uppercase tracking-wider text-muted">{label}</p>
@@ -305,20 +388,35 @@ export function DashboardPage() {
                 key={post.id}
                 className="group flex flex-col gap-4 py-4 transition hover:bg-paper/40 dark:hover:bg-surface-elevated/40 px-3 rounded-2xl sm:flex-row sm:items-center sm:justify-between"
               >
-                <div className="min-w-0 pr-4">
-                  <div className="flex items-center gap-2 text-xs text-muted">
-                    <span className="font-semibold text-moss dark:text-primary uppercase tracking-wider text-[10px]">
-                      {post.categoryName ?? post.category}
-                    </span>
-                    <span>·</span>
-                    <span>Updated {new Date(post.updatedAt).toLocaleDateString()}</span>
+                <div className="flex items-center gap-4 min-w-0 pr-4">
+                  <div className="size-14 shrink-0 overflow-hidden rounded-xl border border-black/[.08] dark:border-white/[.08] bg-paper dark:bg-surface-elevated">
+                    {post.featuredImagePath ? (
+                      <img
+                        src={imageUrl(post.featuredImagePath)}
+                        alt=""
+                        className="size-full object-cover"
+                      />
+                    ) : (
+                      <div className="grid size-full place-items-center bg-moss/5 text-muted">
+                        <BookOpen size={16} className="text-moss/40 dark:text-primary/40" />
+                      </div>
+                    )}
                   </div>
-                  <Link
-                    to={`/dashboard/posts/${post.id}/edit`}
-                    className="mt-1 block font-display text-lg font-bold text-ink transition hover:text-moss dark:hover:text-primary line-clamp-1"
-                  >
-                    {post.title}
-                  </Link>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 text-xs text-muted">
+                      <span className="font-semibold text-moss dark:text-primary uppercase tracking-wider text-[10px]">
+                        {post.categoryName || post.category || "Story"}
+                      </span>
+                      <span>·</span>
+                      <span>Updated {new Date(post.updatedAt).toLocaleDateString()}</span>
+                    </div>
+                    <Link
+                      to={`/dashboard/posts/${post.id}/edit`}
+                      className="mt-0.5 block font-display text-base sm:text-lg font-bold text-ink transition hover:text-moss dark:hover:text-primary line-clamp-1"
+                    >
+                      {post.title}
+                    </Link>
+                  </div>
                 </div>
                 <div className="flex shrink-0 items-center gap-2.5">
                   <StatusBadge status={post.status} />
@@ -385,8 +483,40 @@ export function DashboardPage() {
 }
 
 /* ══════════════════════════════════════════════════════════════════════
-   2. MY POSTS LISTING PAGE
+   2. MY POSTS LISTING PAGE & SKELETON
    ══════════════════════════════════════════════════════════════════════ */
+
+function UserPostsSkeleton() {
+  return (
+    <div className="space-y-4">
+      {Array.from({ length: 3 }).map((_, i) => (
+        <div
+          key={i}
+          className="flex flex-col gap-5 rounded-3xl border border-black/[.08] dark:border-white/[.08] bg-surface p-5 sm:p-6 shadow-card sm:flex-row sm:items-start"
+        >
+          <SkeletonBox className="aspect-[16/10] sm:aspect-square w-full sm:w-36 shrink-0 rounded-2xl" />
+          <div className="flex flex-1 flex-col justify-between space-y-4">
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <SkeletonBox className="h-4 w-24 rounded-full" />
+                <SkeletonBox className="h-5 w-20 rounded-full" />
+              </div>
+              <SkeletonBox className="h-6 w-3/4" />
+              <SkeletonBox className="h-4 w-full" />
+            </div>
+            <div className="flex justify-between items-center pt-3 border-t border-black/[.06] dark:border-white/[.06]">
+              <SkeletonBox className="h-4 w-40" />
+              <div className="flex gap-2">
+                <SkeletonBox className="h-8 w-16 rounded-full" />
+                <SkeletonBox className="h-8 w-24 rounded-full" />
+              </div>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 export function PostListPage() {
   const [page, setPage] = useState(1);
@@ -466,7 +596,7 @@ export function PostListPage() {
 
   return (
     <div className="space-y-8">
-      <Seo title="My Stories — Creator Workspace" />
+      <Seo title="My Stories — Creator Workspace" robotsIndex={false} robotsFollow={false} />
 
       {/* Page Heading */}
       <PageHeading
@@ -474,10 +604,12 @@ export function PostListPage() {
         title="My Stories"
         description="Draft, submit, and keep track of all your published articles, engagement metrics, and editorial review statuses."
         action={
-          <Link to="/dashboard/posts/new">
-            <Button className="shadow-sm">
-              <FilePlus2 size={16} /> New story
-            </Button>
+          <Link
+            to="/dashboard/posts/new"
+            className="inline-flex items-center justify-center gap-2 rounded-full bg-moss px-5 py-2.5 text-xs font-bold uppercase tracking-wider text-white shadow-sm transition hover:bg-ink dark:bg-primary dark:text-[#171B19] dark:hover:bg-primary/90"
+          >
+            <FilePlus2 size={16} />
+            <span>New story</span>
           </Link>
         }
       />
@@ -526,6 +658,7 @@ export function PostListPage() {
               <button
                 type="button"
                 onClick={() => setSearchTerm("")}
+                aria-label="Clear search input"
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-ink"
               >
                 <X size={14} />
@@ -540,7 +673,7 @@ export function PostListPage() {
       </div>
 
       {loading ? (
-        <Loading label="Fetching your stories..." />
+        <UserPostsSkeleton />
       ) : error ? (
         <Notice>{error}</Notice>
       ) : displayedPosts.length ? (
@@ -600,7 +733,7 @@ export function PostListPage() {
                         <Heart size={13} className="text-rose-500" /> {post.likeCount ?? 0} likes
                       </span>
                       <span className="inline-flex items-center gap-1 font-medium">
-                        <MessageSquareText size={13} /> {post.commentCount ?? 0} comments
+                        <MessageSquareText size={13} /> {post.commentCount ?? 0} {post.commentCount === 1 ? "comment" : "comments"}
                       </span>
                       <span>· Created {new Date(post.createdAt).toLocaleDateString()}</span>
                     </div>
@@ -696,6 +829,305 @@ export function PostListPage() {
    3. MY COMMENTS PAGE
    ══════════════════════════════════════════════════════════════════════ */
 
+/* ══════════════════════════════════════════════════════════════════════
+   SAVED STORIES / BOOKMARKS PAGE
+   ══════════════════════════════════════════════════════════════════════ */
+
+interface SavedStoryItem {
+  bookmarkId: string;
+  bookmarkedAt: string;
+  id: string;
+  title: string;
+  slug: string;
+  excerpt: string | null;
+  publishedAt: string | null;
+  author: string;
+  authorProfileImagePath: string | null;
+  categoryId: string;
+  category: string;
+  categorySlug: string;
+  featuredImagePath: string | null;
+  likeCount: number;
+  commentCount: number;
+}
+
+function BookmarksSkeleton() {
+  return (
+    <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+      {Array.from({ length: 6 }).map((_, i) => (
+        <div
+          key={i}
+          className="rounded-2xl border border-black/[.08] dark:border-white/[.08] bg-surface overflow-hidden shadow-card p-5 space-y-4"
+        >
+          <SkeletonBox className="aspect-[16/10] w-full rounded-xl" />
+          <div className="space-y-2">
+            <SkeletonBox className="h-4 w-24" />
+            <SkeletonBox className="h-6 w-full" />
+            <SkeletonBox className="h-3 w-4/5" />
+          </div>
+          <div className="flex justify-between items-center pt-3 border-t border-black/[.06] dark:border-white/[.06]">
+            <SkeletonBox className="h-4 w-28" />
+            <SkeletonBox className="h-7 w-20 rounded-full" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export function SavedStoriesPage() {
+  const [page, setPage] = useState(1);
+  const [search, setSearch] = useState("");
+  const [searchInput, setSearchInput] = useState("");
+  const [removingId, setRemovingId] = useState<string | null>(null);
+
+  const url = useMemo(
+    () => `/user/bookmarks?page=${page}&limit=9${search ? `&search=${encodeURIComponent(search)}` : ""}`,
+    [page, search],
+  );
+
+  const { data, loading, error, reload } = useRemote<PageResult<SavedStoryItem>>(url);
+
+  function handleSearchSubmit(e: FormEvent) {
+    e.preventDefault();
+    setSearch(searchInput.trim());
+    setPage(1);
+  }
+
+  async function handleRemoveBookmark(story: SavedStoryItem) {
+    const confirmed = await confirmAction({
+      title: "Remove from Saved Stories?",
+      text: `Remove "${story.title}" from your personal reading list?`,
+      confirmText: "Remove",
+      cancelText: "Keep Saved",
+      icon: "warning",
+    });
+    if (!confirmed) return;
+
+    setRemovingId(story.id);
+    try {
+      await api.delete(`/user/bookmarks/${story.id}`);
+      showToast({ title: "Removed from saved stories", icon: "success" });
+      void reload();
+    } catch (err) {
+      await showError("Action Failed", getErrorMessage(err));
+    } finally {
+      setRemovingId(null);
+    }
+  }
+
+  const rawList: SavedStoryItem[] = Array.isArray(data)
+    ? data
+    : Array.isArray((data as any)?.data)
+      ? (data as any).data
+      : [];
+
+  const paginationData = (data as any)?.pagination;
+
+  return (
+    <div className="space-y-8">
+      <Seo title="Saved Stories — Personal Reading List" robotsIndex={false} robotsFollow={false} />
+
+      {/* Header Banner */}
+      <div className="relative overflow-hidden rounded-3xl border border-black/[.08] dark:border-white/[.08] bg-surface p-7 sm:p-10 shadow-card">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-accent/30 dark:bg-accent/20 px-3 py-1 text-xs font-bold uppercase tracking-wider text-moss dark:text-primary">
+                <Bookmark size={13} /> Reading Library
+              </span>
+              <span className="text-xs text-muted">· {paginationData?.total ?? rawList.length} saved</span>
+            </div>
+            <h1 className="mt-3 font-display text-3xl font-bold tracking-tight text-ink sm:text-4xl">
+              Saved Stories
+            </h1>
+            <p className="mt-1.5 text-sm text-muted">
+              Articles, dispatches, and technical essays you've bookmarked to read or reference.
+            </p>
+          </div>
+
+          <Link
+            to="/blogs"
+            className="inline-flex items-center gap-1.5 rounded-full bg-moss dark:bg-primary px-5 py-2.5 text-xs font-bold uppercase tracking-wider text-white dark:text-[#171B19] shadow-sm transition hover:bg-ink self-start sm:self-auto"
+          >
+            Explore Journal <ArrowRight size={14} />
+          </Link>
+        </div>
+
+        {/* Search Bar */}
+        <form onSubmit={handleSearchSubmit} className="mt-6 flex max-w-md items-center gap-2">
+          <div className="relative flex-1">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted" size={15} />
+            <input
+              type="text"
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              placeholder="Filter your saved stories..."
+              className="w-full rounded-full border border-black/10 dark:border-white/10 bg-surface pl-10 pr-4 py-2 text-xs text-ink shadow-sm placeholder:text-muted focus:border-moss focus:outline-none dark:focus:border-primary"
+            />
+            {searchInput && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchInput("");
+                  setSearch("");
+                  setPage(1);
+                }}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-ink"
+              >
+                <X size={14} />
+              </button>
+            )}
+          </div>
+          <Button type="submit" variant="secondary" className="!rounded-full !py-2 !px-4 text-xs font-bold uppercase">
+            Filter
+          </Button>
+        </form>
+      </div>
+
+      {/* Main Content Area */}
+      {loading ? (
+        <BookmarksSkeleton />
+      ) : error ? (
+        <Notice>{error}</Notice>
+      ) : rawList.length === 0 ? (
+        <div className="rounded-3xl border border-black/[.08] dark:border-white/[.08] bg-surface p-12 text-center shadow-card">
+          <div className="mx-auto grid size-16 place-items-center rounded-full bg-accent/20 text-moss dark:text-primary">
+            <Bookmark size={28} />
+          </div>
+          <h2 className="mt-4 font-display text-2xl font-bold text-ink">
+            {search ? "No matching saved stories" : "Your reading list is empty"}
+          </h2>
+          <p className="mx-auto mt-2 max-w-md text-sm text-muted">
+            {search
+              ? `No saved stories found matching "${search}". Try clearing your filter.`
+              : "When you discover insightful articles in Fieldnotes, click the Bookmark icon to save them for easy reference."}
+          </p>
+          <div className="mt-6">
+            <Link
+              to="/blogs"
+              className="inline-flex items-center gap-1.5 rounded-full bg-moss dark:bg-primary px-6 py-2.5 text-xs font-bold uppercase tracking-wider text-white dark:text-[#171B19] shadow-sm transition hover:bg-ink"
+            >
+              Browse all stories <ArrowRight size={14} />
+            </Link>
+          </div>
+        </div>
+      ) : (
+        <div className="space-y-8">
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {rawList.map((story) => {
+              const wordCount = (story.excerpt || story.title || "").split(/\s+/).length * 10;
+              const readMinutes = Math.max(2, Math.round(wordCount / 60));
+
+              return (
+                <article
+                  key={story.id}
+                  className="group flex flex-col justify-between overflow-hidden rounded-2xl border border-black/[.08] dark:border-white/[.08] bg-surface shadow-card transition-all duration-300 hover:-translate-y-1 hover:border-moss/40 hover:shadow-soft"
+                >
+                  <div>
+                    {/* Story Cover Image Link */}
+                    <Link
+                      to={`/blogs/${story.slug}`}
+                      className="relative block aspect-[16/10] w-full overflow-hidden bg-black/5 dark:bg-white/5"
+                    >
+                      {story.featuredImagePath ? (
+                        <img
+                          src={imageUrl(story.featuredImagePath)}
+                          alt={story.title}
+                          className="size-full object-cover transition-transform duration-500 ease-out group-hover:scale-105"
+                          loading="lazy"
+                        />
+                      ) : (
+                        <div className="grid size-full place-items-center bg-gradient-to-br from-moss/10 via-accent/15 to-moss/20">
+                          <BookOpen size={28} className="text-moss/40 dark:text-primary/40" />
+                        </div>
+                      )}
+                      <span className="absolute left-3 top-3 rounded-full border border-black/10 dark:border-white/10 bg-surface/90 dark:bg-surface/90 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-moss dark:text-primary shadow-sm backdrop-blur">
+                        {story.category}
+                      </span>
+                    </Link>
+
+                    {/* Body */}
+                    <div className="p-5">
+                      <div className="flex items-center gap-2 text-xs text-muted mb-2">
+                        <span className="grid size-5 place-items-center overflow-hidden rounded-full bg-accent/30 text-[10px] font-bold text-moss dark:text-primary">
+                          {story.authorProfileImagePath ? (
+                            <img src={imageUrl(story.authorProfileImagePath)} alt="" className="size-full object-cover" />
+                          ) : (
+                            (story.author || "A").slice(0, 1).toUpperCase()
+                          )}
+                        </span>
+                        <span className="font-semibold text-ink truncate max-w-[120px]">{story.author}</span>
+                        <span>·</span>
+                        <span>
+                          {story.publishedAt
+                            ? new Date(story.publishedAt).toLocaleDateString(undefined, {
+                                month: "short",
+                                day: "numeric",
+                                year: "numeric",
+                              })
+                            : "Recent"}
+                        </span>
+                      </div>
+
+                      <Link to={`/blogs/${story.slug}`} className="block group-hover:text-moss dark:group-hover:text-primary transition-colors">
+                        <h3 className="font-display text-lg font-bold leading-snug tracking-tight text-ink line-clamp-2">
+                          {story.title}
+                        </h3>
+                      </Link>
+
+                      {story.excerpt && (
+                        <p className="mt-2 text-xs leading-relaxed text-muted line-clamp-2">
+                          {story.excerpt}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Card Footer */}
+                  <div className="flex items-center justify-between border-t border-black/[.06] dark:border-white/[.08] px-5 py-3.5 text-xs">
+                    <span className="inline-flex items-center gap-1 text-[11px] text-muted">
+                      <Clock size={12} /> {readMinutes} min read
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveBookmark(story)}
+                        disabled={removingId === story.id}
+                        aria-label="Remove bookmark"
+                        title="Remove from saved stories"
+                        className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-[11px] font-semibold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 transition disabled:opacity-50"
+                      >
+                        <Trash2 size={13} />
+                        <span>Remove</span>
+                      </button>
+                      <Link
+                        to={`/blogs/${story.slug}`}
+                        className="inline-flex items-center gap-1 font-bold text-moss dark:text-primary hover:underline"
+                      >
+                        Read <ArrowUpRight size={13} />
+                      </Link>
+                    </div>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+
+          {paginationData && paginationData.totalPages > 1 && (
+            <Pagination
+              page={paginationData.page}
+              limit={paginationData.limit}
+              total={paginationData.total}
+              onChange={(p) => setPage(p)}
+            />
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 interface UserComment {
   id: string;
   content: string;
@@ -703,6 +1135,29 @@ interface UserComment {
   createdAt: string;
   postTitle: string;
   postSlug: string;
+}
+
+function UserCommentsSkeleton() {
+  return (
+    <div className="space-y-4">
+      {Array.from({ length: 4 }).map((_, i) => (
+        <div
+          key={i}
+          className="rounded-3xl border border-black/[.08] dark:border-white/[.08] bg-surface p-6 shadow-card space-y-3"
+        >
+          <div className="flex items-center justify-between">
+            <SkeletonBox className="h-4 w-48" />
+            <SkeletonBox className="h-5 w-24 rounded-full" />
+          </div>
+          <SkeletonBox className="h-12 w-full" />
+          <div className="flex justify-between items-center pt-2">
+            <SkeletonBox className="h-3 w-32" />
+            <SkeletonBox className="h-4 w-20" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
 }
 
 export function UserCommentsPage() {
@@ -730,7 +1185,7 @@ export function UserCommentsPage() {
 
   return (
     <div className="space-y-8">
-      <Seo title="My Comments — Creator Workspace" />
+      <Seo title="My Comments — Creator Workspace" robotsIndex={false} robotsFollow={false} />
 
       <PageHeading
         eyebrow="Community Discussions"
@@ -760,7 +1215,7 @@ export function UserCommentsPage() {
       </div>
 
       {loading ? (
-        <Loading label="Retrieving your comments..." />
+        <UserCommentsSkeleton />
       ) : error ? (
         <Notice>{error}</Notice>
       ) : rawList.length ? (
@@ -832,8 +1287,38 @@ export function UserCommentsPage() {
 }
 
 /* ══════════════════════════════════════════════════════════════════════
-   4. POST EDITOR PAGE (CREATE & EDIT - SHARED USER/ADMIN)
+   4. POST EDITOR PAGE & SKELETON (CREATE & EDIT - SHARED USER/ADMIN)
    ══════════════════════════════════════════════════════════════════════ */
+
+function PostEditorSkeleton() {
+  return (
+    <div className="space-y-8">
+      <div className="space-y-2">
+        <SkeletonBox className="h-3 w-28" />
+        <SkeletonBox className="h-8 w-60" />
+        <SkeletonBox className="h-4 w-96" />
+      </div>
+      <div className="grid gap-8 lg:grid-cols-[1fr_360px]">
+        <div className="space-y-8">
+          <div className="rounded-3xl border border-black/[.08] dark:border-white/[.08] bg-surface p-6 sm:p-9 shadow-card space-y-6">
+            <SkeletonBox className="h-6 w-48" />
+            <SkeletonBox className="h-11 w-full" />
+            <SkeletonBox className="h-24 w-full" />
+            <SkeletonBox className="h-96 w-full" />
+          </div>
+        </div>
+        <div className="space-y-6">
+          <div className="rounded-3xl border border-black/[.08] dark:border-white/[.08] bg-surface p-6 shadow-card space-y-6">
+            <SkeletonBox className="h-6 w-36" />
+            <SkeletonBox className="h-10 w-full" />
+            <SkeletonBox className="h-32 w-full" />
+            <SkeletonBox className="h-36 w-full rounded-2xl" />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export function PostEditorPage({ admin = false }: { admin?: boolean }) {
   const { id } = useParams();
@@ -860,6 +1345,8 @@ export function PostEditorPage({ admin = false }: { admin?: boolean }) {
   const [seoTitle, setSeoTitle] = useState("");
   const [seoDescription, setSeoDescription] = useState("");
   const [seoKeywords, setSeoKeywords] = useState("");
+  const [isFeatured, setIsFeatured] = useState<boolean>(false);
+  const [featuredOrder, setFeaturedOrder] = useState<number>(0);
 
   useEffect(() => {
     let active = true;
@@ -918,6 +1405,8 @@ export function PostEditorPage({ admin = false }: { admin?: boolean }) {
             setSeoTitle(p.seoTitle ?? "");
             setSeoDescription(p.seoDescription ?? "");
             setSeoKeywords(p.seoKeywords ?? "");
+            setIsFeatured(Boolean(p.isFeatured));
+            setFeaturedOrder(p.featuredOrder ?? 0);
           }
         }
       } catch (requestError) {
@@ -1091,7 +1580,7 @@ export function PostEditorPage({ admin = false }: { admin?: boolean }) {
       seoTitle: seoTitle.trim() || null,
       seoDescription: seoDescription.trim() || null,
       seoKeywords: seoKeywords.trim() || null,
-      ...(admin ? { status } : { action }),
+      ...(admin ? { status, isFeatured, featuredOrder } : { action }),
     };
 
     try {
@@ -1120,14 +1609,14 @@ export function PostEditorPage({ admin = false }: { admin?: boolean }) {
     }
   }
 
-  if (loading) return <Loading label="Loading story editor..." />;
+  if (loading) return <PostEditorSkeleton />;
   if (error && !options.categories.length) return <Notice>{error}</Notice>;
 
   const isPublishedEdit = !admin && existing && existing.status === "APPROVED";
 
   return (
     <div className="space-y-8">
-      <Seo title={id ? "Edit Story — Creator Workspace" : "Write a New Story — Creator Workspace"} />
+      <Seo title={id ? "Edit Story — Creator Workspace" : "Write a New Story — Creator Workspace"} robotsIndex={false} robotsFollow={false} />
 
       {/* Editorial Page Heading */}
       <PageHeading
@@ -1135,10 +1624,11 @@ export function PostEditorPage({ admin = false }: { admin?: boolean }) {
         title={id ? "Edit your manuscript." : "Craft a new story."}
         description="Refine your narrative, format your prose, organize metadata, and configure search previews."
         action={
-          <Link to={admin ? "/admin/posts" : "/dashboard/posts"}>
-            <Button variant="secondary" size="sm">
-              Back to stories
-            </Button>
+          <Link
+            to={admin ? "/admin/posts" : "/dashboard/posts"}
+            className="inline-flex items-center justify-center gap-1.5 rounded-full border border-black/10 dark:border-white/10 bg-surface px-4 py-2 text-xs font-semibold text-ink shadow-sm transition hover:border-moss/40 hover:bg-paper dark:hover:bg-surface-elevated"
+          >
+            <span>Back to stories</span>
           </Link>
         }
       />
@@ -1336,6 +1826,48 @@ export function PostEditorPage({ admin = false }: { admin?: boolean }) {
               </SelectField>
             )}
 
+            {admin && (
+              <div className="rounded-2xl border border-amber-500/30 bg-amber-500/5 p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <label htmlFor="is-featured-toggle" className="text-sm font-bold text-ink flex items-center gap-1.5 cursor-pointer">
+                      <Sparkles size={14} className="text-amber-500" />
+                      Featured Story
+                    </label>
+                    <p className="text-[11px] text-muted">
+                      Highlight this article in the curated Featured Stories hero section.
+                    </p>
+                  </div>
+                  <input
+                    id="is-featured-toggle"
+                    type="checkbox"
+                    checked={isFeatured}
+                    onChange={(e) => setIsFeatured(e.target.checked)}
+                    className="size-5 rounded border-black/20 text-moss focus:ring-moss dark:focus:ring-primary cursor-pointer"
+                  />
+                </div>
+                {isFeatured && (
+                  <div className="pt-2 border-t border-amber-500/20">
+                    <label className="block text-xs font-semibold text-ink mb-1">
+                      Display Priority Order
+                    </label>
+                    <input
+                      type="number"
+                      min={0}
+                      max={999}
+                      value={featuredOrder}
+                      onChange={(e) => setFeaturedOrder(Math.max(0, parseInt(e.target.value) || 0))}
+                      className="field text-xs !py-1.5"
+                      placeholder="0 (Lower number = higher priority)"
+                    />
+                    <span className="text-[10px] text-muted block mt-1">
+                      Lower number appears first (0 = Primary Cover Story).
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Featured Image */}
             <div className="border-t border-black/[.08] dark:border-white/[.08] pt-4">
               <p className="text-sm font-semibold text-ink">Featured Image</p>
@@ -1479,8 +2011,40 @@ export function PostEditorPage({ admin = false }: { admin?: boolean }) {
 }
 
 /* ══════════════════════════════════════════════════════════════════════
-   5. PROFILE & SETTINGS PAGE
+   5. PROFILE & SETTINGS PAGE & SKELETON
    ══════════════════════════════════════════════════════════════════════ */
+
+function ProfileSkeleton() {
+  return (
+    <div className="space-y-8">
+      <div className="space-y-2">
+        <SkeletonBox className="h-3 w-32" />
+        <SkeletonBox className="h-8 w-64" />
+        <SkeletonBox className="h-4 w-96" />
+      </div>
+      <div className="grid gap-8 lg:grid-cols-2">
+        <div className="rounded-3xl border border-black/[.08] dark:border-white/[.08] bg-surface p-7 sm:p-9 shadow-card space-y-6">
+          <SkeletonBox className="h-7 w-48" />
+          <div className="flex items-center gap-5">
+            <SkeletonBox className="size-24 rounded-full" />
+            <SkeletonBox className="h-9 w-32 rounded-full" />
+          </div>
+          <SkeletonBox className="h-10 w-full" />
+          <SkeletonBox className="h-10 w-full" />
+          <SkeletonBox className="h-24 w-full" />
+          <SkeletonBox className="h-10 w-36 rounded-full" />
+        </div>
+        <div className="rounded-3xl border border-black/[.08] dark:border-white/[.08] bg-surface p-7 sm:p-9 shadow-card space-y-6">
+          <SkeletonBox className="h-7 w-48" />
+          <SkeletonBox className="h-10 w-full" />
+          <SkeletonBox className="h-10 w-full" />
+          <SkeletonBox className="h-10 w-full" />
+          <SkeletonBox className="h-10 w-36 rounded-full" />
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export function ProfilePage() {
   const { refresh } = useAuth();
@@ -1564,6 +2128,10 @@ export function ProfilePage() {
 
   async function uploadAvatar(file?: File) {
     if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      await showWarning("File Too Large", "Profile portrait must be under 5 MB.");
+      return;
+    }
     setBusy(true);
     setError(null);
     setMessage(null);
@@ -1588,12 +2156,12 @@ export function ProfilePage() {
     }
   }
 
-  if (loading) return <Loading label="Loading profile & settings..." />;
+  if (loading) return <ProfileSkeleton />;
   if (!profile) return <Notice>{error ?? "Profile unavailable."}</Notice>;
 
   return (
     <div className="space-y-8">
-      <Seo title="Profile Settings — Creator Workspace" />
+      <Seo title="Profile Settings — Creator Workspace" robotsIndex={false} robotsFollow={false} />
 
       <PageHeading
         eyebrow="Account & Preferences"

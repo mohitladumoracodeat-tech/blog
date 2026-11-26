@@ -64,7 +64,7 @@ export const PageHeader = PageHeading;
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: "primary" | "secondary" | "danger" | "accent" | "ghost" | "outline";
-  size?: "sm" | "md" | "lg";
+  size?: "xs" | "sm" | "md" | "lg";
   isLoading?: boolean;
 }
 
@@ -78,27 +78,28 @@ export function Button({
   ...props
 }: PropsWithChildren<ButtonProps>) {
   const baseStyles =
-    "inline-flex items-center justify-center gap-2 font-semibold transition-all duration-200 active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 dark:focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100";
+    "inline-flex items-center justify-center gap-2 font-semibold transition-all duration-200 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-moss dark:focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-paper dark:focus-visible:ring-offset-surface disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100 disabled:hover:translate-y-0";
 
   const sizeStyles = {
-    sm: "px-3.5 py-1.5 text-xs rounded-lg",
+    xs: "px-2.5 py-1 text-[11px] rounded-lg",
+    sm: "px-3.5 py-1.5 text-xs rounded-xl",
     md: "px-5 py-2.5 text-sm rounded-xl",
     lg: "px-6 py-3 text-base rounded-2xl",
   };
 
   const variantStyles = {
     primary:
-      "bg-moss text-white hover:bg-ink dark:bg-primary dark:text-[#171B19] dark:hover:bg-primary/90 shadow-sm hover:shadow",
+      "bg-moss text-white hover:bg-ink hover:-translate-y-0.5 dark:bg-primary dark:text-[#171B19] dark:hover:bg-primary/90 shadow-sm hover:shadow-card",
     secondary:
-      "border border-black/15 dark:border-white/15 bg-surface text-ink hover:border-moss/40 hover:bg-paper dark:hover:bg-surface-elevated shadow-sm",
+      "border border-black/15 dark:border-white/15 bg-surface text-ink hover:border-moss/40 hover:bg-paper dark:hover:bg-surface-elevated hover:-translate-y-0.5 shadow-sm",
     danger:
-      "border border-red-200/80 dark:border-red-900/60 bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-900/40",
+      "border border-red-200/80 dark:border-red-900/60 bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-900/40 hover:-translate-y-0.5",
     accent:
-      "bg-accent text-ink hover:bg-accent/80 dark:bg-accent dark:text-white shadow-sm",
+      "bg-accent text-ink hover:bg-accent/80 hover:-translate-y-0.5 dark:bg-accent dark:text-white shadow-sm",
     ghost:
       "bg-transparent text-ink hover:bg-paper dark:hover:bg-surface-elevated",
     outline:
-      "border border-primary text-primary hover:bg-primary hover:text-white dark:hover:text-[#171B19]",
+      "border border-moss dark:border-primary text-moss dark:text-primary hover:bg-moss hover:text-white dark:hover:bg-primary dark:hover:text-[#171B19] hover:-translate-y-0.5",
   };
 
   return (
@@ -107,7 +108,7 @@ export function Button({
       disabled={disabled || isLoading}
       {...props}
     >
-      {isLoading && <LoaderCircle size={size === "sm" ? 14 : 16} className="animate-spin" />}
+      {isLoading && <LoaderCircle size={size === "xs" || size === "sm" ? 14 : 16} className="animate-spin" />}
       {children}
     </button>
   );
@@ -251,18 +252,18 @@ export function Card({
     elevated: "bg-surface-elevated border border-black/[.08] dark:border-white/[.08] shadow-md",
     muted: "bg-paper border border-black/[.06] dark:border-white/[.06]",
     interactive:
-      "bg-surface border border-black/[.08] dark:border-white/[.08] shadow-card hover:shadow-soft hover:border-moss/30 transition-all duration-200 cursor-pointer",
+      "bg-surface border border-black/[.08] dark:border-white/[.08] shadow-card hover:shadow-card-hover hover:border-moss/40 dark:hover:border-primary/40 hover:-translate-y-1 transition-all duration-300 cursor-pointer",
   };
 
   const paddingStyles = {
     none: "",
     sm: "p-4",
-    md: "p-6",
+    md: "p-6 sm:p-7",
     lg: "p-8 sm:p-10",
   };
 
   return (
-    <div className={`rounded-2xl ${variantStyles[variant]} ${paddingStyles[padding]} ${className}`}>
+    <div className={`rounded-3xl ${variantStyles[variant]} ${paddingStyles[padding]} ${className}`}>
       {children}
     </div>
   );
@@ -275,6 +276,7 @@ export function Card({
 export interface BadgeProps {
   variant?: "default" | "primary" | "accent" | "success" | "warning" | "danger" | "outline";
   size?: "sm" | "md";
+  dot?: boolean;
   className?: string;
   children: ReactNode;
 }
@@ -282,21 +284,22 @@ export interface BadgeProps {
 export function Badge({
   variant = "default",
   size = "md",
+  dot = false,
   className = "",
   children,
 }: BadgeProps) {
   const sizeStyles = {
-    sm: "px-2 py-0.5 text-[10px]",
-    md: "px-2.5 py-1 text-xs",
+    sm: "px-2.5 py-0.5 text-[10px]",
+    md: "px-3 py-1 text-xs",
   };
 
   const variantStyles = {
-    default: "bg-black/[.06] dark:bg-white/[.08] text-ink",
-    primary: "bg-moss/10 dark:bg-primary/20 text-moss dark:text-primary font-semibold",
-    accent: "bg-accent/30 dark:bg-accent/20 text-ink dark:text-white font-semibold",
-    success: "bg-emerald-500/10 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 font-semibold",
-    warning: "bg-amber-500/15 dark:bg-amber-500/20 text-amber-800 dark:text-amber-200 font-semibold",
-    danger: "bg-red-500/10 dark:bg-red-500/20 text-red-700 dark:text-red-300 font-semibold",
+    default: "bg-black/[.05] dark:bg-white/[.08] text-ink border border-black/[.06] dark:border-white/[.08]",
+    primary: "bg-moss/10 dark:bg-primary/15 text-moss dark:text-primary font-semibold border border-moss/20 dark:border-primary/25",
+    accent: "bg-accent/30 dark:bg-accent/20 text-ink dark:text-white font-semibold border border-accent/40 dark:border-accent/30",
+    success: "bg-emerald-500/10 dark:bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 font-semibold border border-emerald-500/25",
+    warning: "bg-amber-500/10 dark:bg-amber-500/15 text-amber-800 dark:text-amber-300 font-semibold border border-amber-500/25",
+    danger: "bg-red-500/10 dark:bg-red-500/15 text-red-800 dark:text-red-300 font-semibold border border-red-500/25",
     outline: "border border-black/15 dark:border-white/15 text-ink",
   };
 
@@ -304,6 +307,7 @@ export function Badge({
     <span
       className={`inline-flex items-center gap-1.5 rounded-full font-medium tracking-wide uppercase ${sizeStyles[size]} ${variantStyles[variant]} ${className}`}
     >
+      {dot && <span className="size-1.5 rounded-full bg-current opacity-85" aria-hidden="true" />}
       {children}
     </span>
   );
@@ -532,12 +536,12 @@ export function ErrorState({
 }
 
 /* ══════════════════════════════════════════════════════════════════════
-   11. LOADING & LOADING STATE
+   11. LOADING & SKELETON LOADERS (ACCESSIBLE, THEME-AWARE, SHIMMER)
    ══════════════════════════════════════════════════════════════════════ */
 
 export function Loading({ label = "Loading..." }: { label?: string }) {
   return (
-    <div className="flex flex-col items-center justify-center gap-3.5 py-20 text-muted">
+    <div className="flex flex-col items-center justify-center gap-3.5 py-20 text-muted" role="status">
       <LoaderCircle className="animate-spin text-moss dark:text-primary" size={32} />
       <span className="font-display italic text-base tracking-wide text-ink/75">{label}</span>
     </div>
@@ -545,6 +549,289 @@ export function Loading({ label = "Loading..." }: { label?: string }) {
 }
 
 export const LoadingState = Loading;
+
+export function SkeletonBox({
+  className = "",
+  rounded = "rounded-xl",
+}: {
+  className?: string;
+  rounded?: string;
+}) {
+  return (
+    <div
+      aria-hidden="true"
+      className={`skeleton-shimmer ${rounded} ${className}`}
+    />
+  );
+}
+
+export function PostCardSkeleton({
+  variant = "standard",
+  count = 1,
+  className = "",
+}: {
+  variant?: "standard" | "featured" | "compact" | "spotlight";
+  count?: number;
+  className?: string;
+}) {
+  const items = Array.from({ length: count }, (_, i) => i);
+
+  if (variant === "featured") {
+    return (
+      <div
+        role="status"
+        aria-label="Loading featured story..."
+        className={`rounded-3xl border border-black/[.08] dark:border-white/[.08] bg-surface shadow-card overflow-hidden lg:grid lg:grid-cols-12 ${className}`}
+      >
+        <span className="sr-only">Loading featured story...</span>
+        <div className="lg:col-span-7 min-h-[300px] sm:min-h-[360px] lg:min-h-[460px] relative p-6 flex flex-col justify-between">
+          <SkeletonBox className="absolute inset-0 size-full" rounded="rounded-none" />
+          <div className="relative z-10 flex items-center gap-2">
+            <SkeletonBox className="h-6 w-24" rounded="rounded-full" />
+            <SkeletonBox className="h-6 w-36" rounded="rounded-full" />
+          </div>
+        </div>
+        <div className="lg:col-span-5 p-7 sm:p-10 lg:p-10 xl:p-12 flex flex-col justify-between space-y-6">
+          <div className="space-y-4">
+            <div className="flex items-center gap-2">
+              <SkeletonBox className="size-6" rounded="rounded-full" />
+              <SkeletonBox className="h-4 w-28" />
+              <SkeletonBox className="h-4 w-20" />
+            </div>
+            <SkeletonBox className="h-9 w-full" />
+            <SkeletonBox className="h-9 w-4/5" />
+            <div className="space-y-2 pt-2">
+              <SkeletonBox className="h-4 w-full" />
+              <SkeletonBox className="h-4 w-full" />
+              <SkeletonBox className="h-4 w-3/4" />
+            </div>
+            <div className="flex gap-2 pt-3">
+              <SkeletonBox className="h-5 w-16" rounded="rounded-full" />
+              <SkeletonBox className="h-5 w-20" rounded="rounded-full" />
+            </div>
+          </div>
+          <div className="border-t border-black/[.08] dark:border-white/[.08] pt-5 flex items-center justify-between">
+            <SkeletonBox className="h-4 w-28" />
+            <SkeletonBox className="h-4 w-24" />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (variant === "compact") {
+    return (
+      <div role="status" aria-label="Loading curated stories..." className={`divide-y divide-black/[.06] dark:divide-white/[.06] ${className}`}>
+        <span className="sr-only">Loading stories...</span>
+        {items.map((i) => (
+          <div key={i} className="group flex gap-4 py-4 items-start">
+            <SkeletonBox className="h-7 w-6 shrink-0" rounded="rounded" />
+            <div className="flex-1 space-y-2">
+              <SkeletonBox className="h-3 w-28" />
+              <SkeletonBox className="h-4 w-full" />
+              <SkeletonBox className="h-4 w-3/4" />
+              <SkeletonBox className="h-3 w-32" />
+            </div>
+            <SkeletonBox className="size-16 shrink-0" rounded="rounded-xl" />
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  if (variant === "spotlight") {
+    return (
+      <div
+        role="status"
+        aria-label="Loading spotlight story..."
+        className={`rounded-3xl border border-black/[.08] dark:border-white/[.08] bg-surface-elevated p-6 sm:p-10 shadow-card md:grid md:grid-cols-12 md:gap-8 md:items-center ${className}`}
+      >
+        <span className="sr-only">Loading spotlight story...</span>
+        <div className="md:col-span-7 space-y-4">
+          <SkeletonBox className="h-5 w-32" rounded="rounded-full" />
+          <SkeletonBox className="h-8 w-4/5" />
+          <SkeletonBox className="h-4 w-full" />
+          <SkeletonBox className="h-4 w-3/4" />
+          <div className="pt-2 flex items-center gap-3">
+            <SkeletonBox className="h-9 w-32" rounded="rounded-full" />
+            <SkeletonBox className="h-4 w-24" />
+          </div>
+        </div>
+        <div className="mt-6 md:mt-0 md:col-span-5 aspect-[16/10]">
+          <SkeletonBox className="size-full" rounded="rounded-2xl" />
+        </div>
+      </div>
+    );
+  }
+
+  // Standard Grid Card
+  return (
+    <>
+      {items.map((i) => (
+        <div
+          key={i}
+          role="status"
+          aria-label="Loading story..."
+          className={`flex flex-col justify-between overflow-hidden rounded-3xl border border-black/[.08] dark:border-white/[.08] bg-surface shadow-card ${className}`}
+        >
+          <span className="sr-only">Loading story...</span>
+          <div>
+            <div className="relative aspect-[16/10] w-full">
+              <SkeletonBox className="size-full" rounded="rounded-none" />
+              <div className="absolute left-4 top-4">
+                <SkeletonBox className="h-6 w-20" rounded="rounded-full" />
+              </div>
+            </div>
+            <div className="p-6 sm:p-7 space-y-4">
+              <div className="flex items-center gap-2">
+                <SkeletonBox className="size-5" rounded="rounded-full" />
+                <SkeletonBox className="h-3.5 w-24" />
+                <SkeletonBox className="h-3.5 w-16" />
+              </div>
+              <SkeletonBox className="h-6 w-full" />
+              <SkeletonBox className="h-6 w-3/4" />
+              <div className="space-y-1.5 pt-1">
+                <SkeletonBox className="h-3.5 w-full" />
+                <SkeletonBox className="h-3.5 w-4/5" />
+              </div>
+            </div>
+          </div>
+          <div className="p-6 sm:p-7 pt-0 border-t border-black/[.06] dark:border-white/[.06] mt-4 flex items-center justify-between pt-4">
+            <SkeletonBox className="h-4 w-20" />
+            <SkeletonBox className="h-4 w-24" />
+          </div>
+        </div>
+      ))}
+    </>
+  );
+}
+
+export function HeroSkeleton() {
+  return (
+    <div role="status" aria-label="Loading front page edition..." className="space-y-8">
+      <span className="sr-only">Loading front page...</span>
+      {/* Editorial Top Headline Banner Skeleton */}
+      <div className="mb-6 flex flex-col sm:flex-row sm:items-end justify-between border-b-2 border-black/10 dark:border-white/10 pb-4 gap-4">
+        <div className="space-y-2">
+          <SkeletonBox className="h-4 w-44" />
+          <SkeletonBox className="h-12 w-80 sm:w-96" />
+        </div>
+        <SkeletonBox className="h-10 w-full sm:w-80" rounded="rounded-xl" />
+      </div>
+
+      {/* Asymmetric 7/5 Grid */}
+      <div className="grid gap-8 lg:grid-cols-12 lg:items-start">
+        <div className="lg:col-span-7">
+          <PostCardSkeleton variant="featured" />
+        </div>
+        <div className="lg:col-span-5 rounded-3xl border border-black/[.08] dark:border-white/[.08] bg-surface p-6 sm:p-8 shadow-card space-y-4">
+          <div className="border-b border-black/[.08] dark:border-white/[.08] pb-3 mb-3 flex justify-between items-center">
+            <SkeletonBox className="h-4 w-36" />
+            <SkeletonBox className="h-3 w-24" />
+          </div>
+          <PostCardSkeleton variant="compact" count={3} />
+          <div className="border-t border-black/[.08] dark:border-white/[.08] pt-4 flex justify-between items-center">
+            <SkeletonBox className="h-3 w-32" />
+            <SkeletonBox className="h-4 w-20" />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function TableSkeleton({
+  rows = 5,
+  cols = 4,
+  className = "",
+}: {
+  rows?: number;
+  cols?: number;
+  className?: string;
+}) {
+  const rowItems = Array.from({ length: rows }, (_, i) => i);
+  const colItems = Array.from({ length: cols }, (_, i) => i);
+
+  return (
+    <div
+      role="status"
+      aria-label="Loading records..."
+      className={`overflow-hidden rounded-3xl border border-black/[.08] dark:border-white/[.08] bg-surface dark:bg-surface-elevated shadow-soft ${className}`}
+    >
+      <span className="sr-only">Loading records...</span>
+      <div className="border-b border-black/[.08] dark:border-white/[.08] bg-paper dark:bg-background/60 px-6 py-4 flex gap-4">
+        {colItems.map((c) => (
+          <SkeletonBox
+            key={c}
+            className={`h-4 ${c === 0 ? "w-40" : c === cols - 1 ? "w-20 ml-auto" : "w-28 hidden sm:block"}`}
+          />
+        ))}
+      </div>
+      <div className="divide-y divide-black/[.06] dark:divide-white/[.06]">
+        {rowItems.map((r) => (
+          <div key={r} className="px-6 py-4 flex items-center gap-4">
+            <div className="flex-1 space-y-2">
+              <SkeletonBox className="h-5 w-48 sm:w-64" />
+              <SkeletonBox className="h-3 w-32" />
+            </div>
+            {cols > 2 && (
+              <div className="hidden sm:block flex-1">
+                <SkeletonBox className="h-4 w-36" />
+              </div>
+            )}
+            <SkeletonBox className="h-6 w-20" rounded="rounded-full" />
+            <SkeletonBox className="h-8 w-24" rounded="rounded-lg" />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export function ArticleDetailSkeleton() {
+  return (
+    <article role="status" aria-label="Loading article..." className="mx-auto max-w-4xl space-y-8 py-6">
+      <span className="sr-only">Loading article...</span>
+      <div className="space-y-4">
+        <div className="flex items-center gap-2">
+          <SkeletonBox className="h-6 w-24" rounded="rounded-full" />
+          <SkeletonBox className="h-4 w-32" />
+        </div>
+        <SkeletonBox className="h-12 w-full" />
+        <SkeletonBox className="h-12 w-4/5" />
+        <div className="flex items-center gap-3 pt-3 border-b border-black/[.08] dark:border-white/[.08] pb-6">
+          <SkeletonBox className="size-10" rounded="rounded-full" />
+          <div className="space-y-1.5">
+            <SkeletonBox className="h-4 w-28" />
+            <SkeletonBox className="h-3 w-36" />
+          </div>
+        </div>
+      </div>
+      <SkeletonBox className="aspect-[16/9] w-full" rounded="rounded-3xl" />
+      <SkeletonBox className="h-14 w-full" rounded="rounded-2xl" />
+      <div className="space-y-4 pt-4">
+        <SkeletonBox className="h-5 w-full" />
+        <SkeletonBox className="h-5 w-full" />
+        <SkeletonBox className="h-5 w-11/12" />
+        <SkeletonBox className="h-5 w-full" />
+        <SkeletonBox className="h-5 w-4/5" />
+      </div>
+    </article>
+  );
+}
+
+export function TableContainer({
+  children,
+  className = "",
+}: PropsWithChildren<{ className?: string }>) {
+  return (
+    <div
+      className={`overflow-x-auto rounded-3xl border border-black/[.08] dark:border-white/[.08] bg-surface dark:bg-surface-elevated shadow-soft ${className}`}
+    >
+      {children}
+    </div>
+  );
+}
 
 /* ══════════════════════════════════════════════════════════════════════
    12. EMPTY STATE
@@ -571,9 +858,9 @@ export function EmptyState({
         {title}
       </h2>
       {children && (
-        <p className="mx-auto mt-3 max-w-lg text-base font-normal leading-relaxed text-muted">
+        <div className="mx-auto mt-3 max-w-lg text-base font-normal leading-relaxed text-muted">
           {children}
-        </p>
+        </div>
       )}
       {action && <div className="mt-6 flex justify-center">{action}</div>}
     </div>

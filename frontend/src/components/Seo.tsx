@@ -69,7 +69,13 @@ function upsertJsonLd(id: string, data?: Record<string, unknown> | null) {
 /** Resolve an image path to an absolute URL suitable for social preview tags. */
 function absoluteImage(image?: string | null): string | null {
   if (!image) return null;
-  return imageUrl(image) ?? null;
+  const resolved = imageUrl(image);
+  if (!resolved) return null;
+  if (/^https?:\/\//i.test(resolved)) return resolved;
+  if (typeof window !== "undefined") {
+    return `${window.location.origin}${resolved.startsWith("/") ? "" : "/"}${resolved}`;
+  }
+  return resolved;
 }
 
 /**
@@ -103,7 +109,14 @@ export function Seo({
     const isFollow = robotsFollow === true || robotsFollow === 1 || robotsFollow === undefined;
     upsertMeta("name", "robots", `${isIndex ? "index" : "noindex"}, ${isFollow ? "follow" : "nofollow"}`);
 
-    const pageUrl = canonicalUrl || window.location.href;
+    const pageUrl = (() => {
+      if (typeof window === "undefined") return canonicalUrl || "";
+      if (canonicalUrl && /^https?:\/\//i.test(canonicalUrl)) return canonicalUrl;
+      if (canonicalUrl) {
+        return `${window.location.origin}${canonicalUrl.startsWith("/") ? "" : "/"}${canonicalUrl}`;
+      }
+      return window.location.href;
+    })();
     const resolvedOgImage = absoluteImage(ogImage ?? image);
     const resolvedTwitterImage = absoluteImage(twitterImage ?? image ?? ogImage);
 
