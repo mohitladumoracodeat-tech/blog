@@ -42,6 +42,25 @@ const envSchema = z
       .enum(["true", "false", "1", "0"])
       .optional()
       .transform((val) => val === "true" || val === "1"),
+    // SMTP & Production Email Configuration (DEF-HIGH-01)
+    SMTP_HOST: z.string().trim().optional(),
+    SMTP_PORT: z.coerce.number().int().min(1).max(65535).default(587),
+    SMTP_SECURE: z
+      .enum(["true", "false", "1", "0", ""])
+      .optional()
+      .transform((val) => val === "true" || val === "1"),
+    SMTP_USER: z.string().trim().optional(),
+    SMTP_PASSWORD: z.string().optional(),
+    SMTP_FROM: z.string().trim().default("Fieldnotes Journal <no-reply@fieldnotes.journal>"),
+    APP_URL: z.string().trim().optional(),
+    // Phase 1G: Hindi Translation Service Configuration
+    TRANSLATION_PROVIDER: z
+      .enum(["none", "gemini", "libretranslate", "deepl", "google-cloud", "mock"])
+      .default("none"),
+    TRANSLATION_API_KEY: z.string().optional(),
+    TRANSLATION_API_URL: z.string().optional(),
+    GEMINI_API_KEY: z.string().optional(),
+    GEMINI_MODEL: z.string().default("gemini-3.5-flash-lite"),
   })
   .refine(
     (data) => {

@@ -1,10 +1,24 @@
+import { existsSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { Connection, RowDataPacket } from "mysql2/promise";
 import { logger } from "../config/logger";
 import { parseDatabaseUrl, quotedDatabaseName } from "../config/mysql";
 
-const BACKUPS_DIR = path.resolve(process.cwd(), "database", "backups");
+export function getBackupsDir(): string {
+  const candidates = [
+    path.resolve(__dirname, "../../database/backups"),
+    path.resolve(__dirname, "../../../database/backups"),
+    path.resolve(process.cwd(), "backend", "database", "backups"),
+    path.resolve(process.cwd(), "database", "backups"),
+  ];
+  for (const candidate of candidates) {
+    if (existsSync(candidate)) {
+      return candidate;
+    }
+  }
+  return path.resolve(process.cwd(), "backend", "database", "backups");
+}
 
 function quoteIdentifier(identifier: string): string {
   return `\`${identifier.replace(/`/g, "``")}\``;
@@ -56,7 +70,7 @@ export async function backupExistingDatabase(
     logger.warn({ err: error, database }, "Could not create a MySQL snapshot database; writing JSON backup files");
   }
 
-  const backupDirectory = path.join(BACKUPS_DIR, backupName);
+  const backupDirectory = path.join(getBackupsDir(), backupName);
   await mkdir(backupDirectory, { recursive: true });
   for (const table of tables) {
     const [rows] = await connection.query<RowDataPacket[]>(

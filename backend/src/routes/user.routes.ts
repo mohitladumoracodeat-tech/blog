@@ -168,11 +168,16 @@ const updateProfileHandler: RequestHandler = async (request, response) => {
     );
     if (!users[0]) throw new AppError(404, "User not found.", "USER_NOT_FOUND");
     if (input.profileImageId) {
-      const [images] = await connection.execute<Array<RowDataPacket & { id: string }>>(
-        "SELECT id FROM images WHERE id = ? AND uploaded_by_id = ? LIMIT 1",
+      const [images] = await connection.execute<Array<RowDataPacket & { id: string; mime_type: string }>>(
+        `SELECT id, mime_type FROM images
+         WHERE id = ? AND uploaded_by_id = ?
+           AND mime_type IN ('image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/avif')
+         LIMIT 1`,
         [input.profileImageId, userId],
       );
-      if (!images[0]) throw new AppError(400, "Profile image is unavailable.", "INVALID_IMAGE");
+      if (!images[0]) {
+        throw new AppError(400, "Profile image is unavailable or not owned by your account.", "INVALID_IMAGE");
+      }
     }
     await connection.execute(
       "UPDATE users SET username = ?, email = ?, bio = ? WHERE id = ?",
@@ -682,4 +687,131 @@ userRouter.post("/posts/:id/view", async (request, response) => {
     [randomUUID(), postId, request.user?.id ?? null, visitorKey],
   );
   response.status(204).end();
+});
+
+/* =========================================================================
+   6. BOOKMARKS / SAVED STORIES
+   ========================================================================= */
+
+userRouter.post("/bookmarks/:postId", async (request, response) => {
+  const postId = parseOrThrow(uuidSchema, request.params.postId);
+  const [posts] = await pool.execute<Array<RowDataPacket & { id: string }>>(
+    "SELECT id FROM posts WHERE id = ? AND status = 'APPROVED' AND published_at IS NOT NULL AND deleted_at IS NULL LIMIT 1",
+    [postId],
+  );
+  if (!posts[0]) {
+    throw new AppError(404, "Published post not found.", "POST_NOT_FOUND");
+  }
+
+  const id = randomUUID();
+  await pool.execute(
+    `INSERT IGNORE INTO post_bookmarks (id, user_id, post_id)
+     VALUES (?, ?, ?)`,
+    [id, request.user!.id, postId],
+  );
+
+  response.status(200).json({
+    data: { bookmarked: true, postId },
+  });
+});
+
+userRouter.delete("/bookmarks/:postId", async (request, response) => {
+  const postId = parseOrThrow(uuidSchema, request.params.postId);
+  await pool.execute(
+    "DELETE FROM post_bookmarks WHERE user_id = ? AND post_id = ?",
+    [request.user!.id, postId],
+  );
+
+  response.status(200).json({
+    data: { bookmarked: false, postId },
+  });
+});
+
+userRouter.get("/bookmarks/:postId/status", async (request, response) => {
+  const postId = parseOrThrow(uuidSchema, request.params.postId);
+  const [rows] = await pool.execute<Array<RowDataPacket & { isBookmarked: number }>>(
+    `SELECT EXISTS(
+       SELECT 1 FROM post_bookmarks WHERE user_id = ? AND post_id = ?
+     ) AS isBookmarked`,
+    [request.user!.id, postId],
+  );
+
+  response.status(200).json({
+    data: { isBookmarked: Boolean(rows[0]?.isBookmarked), postId },
+  });
+});
+
+userRouter.get("/bookmarks", async (request, response) => {
+  const query = parseOrThrow(
+    paginationSchema.extend({
+      search: z.string().trim().max(100).default(""),
+      categoryId: z.string().uuid().optional(),
+    }),
+    request.query,
+  );
+
+  const conditions = [
+    "b.user_id = ?",
+    "p.status = 'APPROVED'",
+    "p.published_at IS NOT NULL",
+    "p.deleted_at IS NULL",
+  ];
+  const values: Array<string | number> = [request.user!.id];
+
+  if (query.categoryId) {
+    conditions.push("p.category_id = ?");
+    values.push(query.categoryId);
+  }
+
+  if (query.search) {
+    const pattern = `%${query.search.toLowerCase()}%`;
+    conditions.push("(LOWER(p.title) LIKE ? OR LOWER(p.excerpt) LIKE ?)");
+    values.push(pattern, pattern);
+  }
+
+  const where = conditions.join(" AND ");
+
+  const [counts] = await pool.execute<CountRow[]>(
+    `SELECT COUNT(*) AS total
+     FROM post_bookmarks b
+     JOIN posts p ON p.id = b.post_id
+     WHERE ${where}`,
+    values,
+  );
+
+  const offset = paginationOffset(query.page, query.limit);
+  const [rows] = await pool.execute<RowDataPacket[]>(
+    `SELECT
+       b.id AS bookmarkId,
+       b.created_at AS bookmarkedAt,
+       p.id,
+       p.title,
+       p.slug,
+       p.excerpt,
+       p.published_at AS publishedAt,
+       u.username AS author,
+       upi_img.file_path AS authorProfileImagePath,
+       c.id AS categoryId,
+       c.name AS category,
+       c.slug AS categorySlug,
+       i.file_path AS featuredImagePath,
+       (SELECT COUNT(*) FROM post_likes pl WHERE pl.post_id = p.id) AS likeCount,
+       (SELECT COUNT(*) FROM comments cm WHERE cm.post_id = p.id AND cm.status = 'APPROVED' AND cm.deleted_at IS NULL) AS commentCount
+     FROM post_bookmarks b
+     JOIN posts p ON p.id = b.post_id
+     JOIN users u ON u.id = p.author_id
+     LEFT JOIN user_profile_images upi ON upi.user_id = u.id
+     LEFT JOIN images upi_img ON upi_img.id = upi.image_id
+     LEFT JOIN categories c ON c.id = p.category_id
+     LEFT JOIN images i ON i.id = p.featured_image_id
+     WHERE ${where}
+     ORDER BY b.created_at DESC
+     LIMIT ? OFFSET ?`,
+    [...values, query.limit, offset],
+  );
+
+  response.status(200).json({
+    data: rows,
+    pagination: formatPagination(query.page, query.limit, counts[0].total),
+  });
 });
