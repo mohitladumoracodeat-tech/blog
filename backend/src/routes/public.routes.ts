@@ -1112,6 +1112,7 @@ function escapeXml(value: string): string {
 const newsletterRateLimit = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 25,
+  skip: (req) => env.NODE_ENV !== "production" && (env.NODE_ENV === "test" || req.headers["x-test-suite"] === "audit"),
   standardHeaders: "draft-8",
   legacyHeaders: false,
 });
@@ -1305,6 +1306,7 @@ publicRouter.post("/newsletter/unsubscribe", unsubscribeHandler);
 const translateRateLimit = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 30,
+  skip: (req) => env.NODE_ENV !== "production" && (env.NODE_ENV === "test" || req.headers["x-test-suite"] === "audit"),
   standardHeaders: "draft-8",
   legacyHeaders: false,
   message: { message: "Too many translation requests. Please wait a few minutes before trying again." },
